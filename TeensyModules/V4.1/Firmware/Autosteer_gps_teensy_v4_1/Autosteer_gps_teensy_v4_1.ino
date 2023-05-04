@@ -36,7 +36,7 @@ HardwareSerial* SerialGPSTmp = NULL;
 
 const int32_t baudAOG = 115200;
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
+const int32_t baudRTK = 115200;     // most are using Xbee radios with default of 115200
 
 // Baudrates for detecting UBX receiver
 uint32_t baudrates[]
@@ -75,6 +75,7 @@ uint32_t READ_BNO_TIME = 0;   //Used stop BNO data pile up (This version is with
 #define AUTOSTEER_STANDBY_LED 11  //Red
 #define AUTOSTEER_ACTIVE_LED 12   //Green
 uint32_t gpsReadyTime = 0;        //Used for GGA timeout
+#define TEENSY_RESET_IO A12       //Used for Teensy reboot (short press) & reset to firmware default (long press)
 
 //for v2.2
 // #define Power_on_LED 22
@@ -105,6 +106,7 @@ unsigned int portMy = 5120;             // port of this module
 unsigned int AOGNtripPort = 2233;       // port NTRIP data from AOG comes in
 unsigned int AOGAutoSteerPort = 8888;   // port Autosteer data from AOG comes in
 unsigned int portDestination = 9999;    // Port of AOG that listens
+unsigned int portCorrectedNmea = 9988;  // Port to output corrected NMEA
 char Eth_NTRIP_packetBuffer[512];       // buffer for receiving ntrip data
 
 // An EthernetUDP instance to let us send and receive packets over UDP
@@ -134,6 +136,7 @@ bool useDual = false;
 bool dualReadyGGA = false;
 bool dualReadyRelPos = false;
 
+double pivotLat, pivotLon, fixHeading, pivotAltitude;
 // booleans to see if we are using CMPS or BNO08x
 bool useCMPS = false;
 bool useBNO08x = false;
@@ -217,13 +220,27 @@ struct ubxPacket
 	////sfe_ublox_packet_validity_e classAndIDmatch; // Goes from NOT_DEFINED to VALID or NOT_VALID when the Class and ID match the requestedClass and requestedID
 };
 
+#include "reset.h"
+//Reset(uint8_t _btnIO, uint16_t _btnPressPeriod = 10000, uint8_t _ledIO = LED_BUILTIN)
+Reset teensyReset(A12, 2000);  //Used for Teensy reboot (short press) & reset to firmware default (10s long press, work in progress)
+
+// **** JD DAC Steering ****
+#include "JD_DAC.h"
+//JD_DAC(TwoWire &wirePort, uint8_t dacAddr = 0x64, uint8_t dacSetCenterIO = 14, uint8_t dacPrintIO = 13)
+JD_DAC jdDac(Wire1, 0x64, A14, A13);//, &SerialAOG);
+// Wire1, SDA1/SCL1 (in 6 pin Canbus header on v2.4 AiO)
+// Adafruit ships 0x60 or 0x64
+// IO A14 & A13 for btn inputs
+
 // Setup procedure ------------------------
 void setup()
 {
     delay(500);                         //Small delay so serial can monitor start up
     //set_arm_clock(150000000);           //Set CPU speed to 150mhz
-    //Serial.print("CPU speed set to: ");
-    //Serial.println(F_CPU_ACTUAL);
+    Serial.print("\r\nCPU speed set to: ");
+    Serial.println(F_CPU_ACTUAL);
+
+  jdDac.setDebugStream(&SerialAOG);
 
   pinMode(GGAReceivedLED, OUTPUT);
   pinMode(Power_on_LED, OUTPUT);
@@ -232,6 +249,7 @@ void setup()
   pinMode(GPSGREEN_LED, OUTPUT);
   pinMode(AUTOSTEER_STANDBY_LED, OUTPUT);
   pinMode(AUTOSTEER_ACTIVE_LED, OUTPUT);
+  pinMode(TEENSY_RESET_IO, INPUT_PULLUP);
 
   // the dash means wildcard
   parser.setErrorHandler(errorHandler);
@@ -345,14 +363,38 @@ void setup()
 
 void loop()
 {
+
+	jdDac.loop();
+	jdDac.ch4Output();
+
+	if (teensyReset.update()) {  // true return means reset settings to defaults
+		// set to firmware defaults code goes here
+
+		// set defaults
+		//networkAddress = defaultNetworkAddress;
+		//steerConfig = defaultSteerConfig; // doesn't work because loop()doesn't have access to these structs, don't know how to fix it
+
+
+		// save all defaults to EEPROM, needs restructuring into a function call so that these lines are only in one place
+		// copied from autosteerSetup()
+		// EEPROM doesn't work here either
+		//EEPROM.put(10, steerSettings);
+		//EEPROM.put(40, steerConfig);
+		//EEPROM.put(60, networkAddress);    
+
+		Serial.println("\r\n\n****** Factory/firmware defaults set ******");
+		Serial.println("\r\n**************** Rebooting ****************");
+		teensyReset.reboot(true);
+	}
+	
     if (GGA_Available == false && !passThroughGPS && !passThroughGPS2)
     {
         if (systick_millis_count - PortSwapTime >= 10000)
         {
-            Serial.println("Swapping GPS ports...\r\n");
+            /*Serial.println("Swapping GPS ports...\r\n");
             SerialGPSTmp = SerialGPS;
             SerialGPS = SerialGPS2;
-            SerialGPS2 = SerialGPSTmp;
+            SerialGPS2 = SerialGPSTmp;*/
             PortSwapTime = systick_millis_count;
         }
     }
@@ -578,7 +620,10 @@ void loop()
         }
         else
         {
-            parser << SerialGPS->read();
+            //parser << SerialGPS->read();
+            byte r = SerialGPS->read();
+            parser << r;
+            //Serial.write(r);
         }
     }
 

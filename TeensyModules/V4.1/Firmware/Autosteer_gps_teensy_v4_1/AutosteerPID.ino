@@ -67,10 +67,16 @@ void motorDrive(void)
   }
   else
   {
+    // For JD_DAC.h, MCP4728 QUAD DAC steering
+    // scale pwmDrive to DAC output
+    // 0 PWM (no WAS change needed) = 2048 centered DAC output (4096 / 2 to get center voltage)
+    pwmDisplay = jdDac.steerOutput(pwmDrive);
+    
+
     // IBT 2 Driver Dir1 connected to BOTH enables
     // PWM Left + PWM Right Signal
 
-    if (pwmDrive > 0)
+    /*if (pwmDrive > 0)
     {
       analogWrite(PWM2_RPWM, 0);//Turn off before other one on
       analogWrite(PWM1_LPWM, pwmDrive);
@@ -82,6 +88,6 @@ void motorDrive(void)
       analogWrite(PWM2_RPWM, pwmDrive);
     }
 
-    pwmDisplay = pwmDrive;
+    pwmDisplay = pwmDrive;*/
   }
 }

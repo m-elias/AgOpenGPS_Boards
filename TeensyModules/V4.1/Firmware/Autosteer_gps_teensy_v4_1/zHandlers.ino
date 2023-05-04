@@ -4,6 +4,9 @@ const char* asciiHex = "0123456789ABCDEF";
 // the new PANDA sentence buffer
 char nmea[100];
 
+// Corrected NMEA output
+char correctedNMEA[100];
+
 // GGA
 char fixTime[12];
 char latitude[15];
@@ -12,19 +15,29 @@ char longitude[15];
 char lonEW[3];
 char fixQuality[2];
 char numSats[4];
+char numSatsPVT[4];
 char HDOP[5];
 char altitude[12];
+char geoid[12];
 char ageDGPS[10];
+char stationID[12];
 
 // VTG
 char vtgHeading[12] = { };
+char vtgMagHeading[12] = { };
 char speedKnots[10] = { };
+char speedKm[10] = { };
 
 // IMU
 char imuHeading[6];
 char imuRoll[6];
 char imuPitch[6];
 char imuYawRate[6];
+
+// Corrected NMEA
+char correctedHeading[12] = { };
+char correctedLatitude[15] = { };;
+char correctedLongitude[15] = { };;
 
 // If odd characters showed up.
 void errorHandler()
@@ -57,8 +70,14 @@ void GGA_Handler() //Rec'd GGA
     // altitude
     parser.getArg(8, altitude);
 
+    // height of geoid
+    parser.getArg(10, geoid);
+
     // time of last DGPS update
     parser.getArg(12, ageDGPS);
+
+    // stationID
+    parser.getArg(13, stationID);
 
     if (blink)
     {
@@ -344,7 +363,7 @@ void BuildNmea(void)
 
     if (!passThroughGPS && !passThroughGPS2)
     {
-        SerialAOG.write(nmea);  //Always send USB GPS data
+        if (!jdDac.printSWS) SerialAOG.write(nmea);  //Always send USB GPS data
     }
 
     if (Ethernet_running)   //If ethernet running send the GPS there
@@ -475,11 +494,201 @@ void CalculateChecksum(void)
 
 void VTG_Handler()
 {
-  // vtg heading
-  parser.getArg(0, vtgHeading);
+    // vtg heading
+    parser.getArg(0, vtgHeading);
 
-  // vtg Speed knots
-  parser.getArg(4, speedKnots);
+    // vtg heading
+    parser.getArg(2, vtgMagHeading);
+
+    // vtg Speed knots
+    parser.getArg(4, speedKnots);
+
+    // vtg Speed km
+    parser.getArg(6, speedKm);
+
+}
+
+void BuildCorrectedNMEA(void)
+{
+    /*
+    $GPGGA, 123519, 4807.038, N, 01131.000, E, 1, 08, 0.9, 545.4, M, 46.9, M, , * 47
+    0     1      2      3    4      5 6  7  8   9    10 11  12 13  14
+    Time      Lat       Lon     FixSatsOP Alt
+    Where :
+    GGA          Global Positioning System Fix Data
+    123519       Fix taken at 12 : 35 : 19 UTC
+    4807.038, N   Latitude 48 deg 07.038' N
+    01131.000, E  Longitude 11 deg 31.000' E
+    1            Fix quality : 0 = invalid
+    1 = GPS fix(SPS)
+    2 = DGPS fix
+    3 = PPS fix
+    4 = Real Time Kinematic
+    5 = Float RTK
+    6 = estimated(dead reckoning) (2.3 feature)
+    7 = Manual input mode
+    8 = Simulation mode
+    08           Number of satellites being tracked
+    0.9          Horizontal dilution of position
+    545.4, M      Altitude, Meters, above mean sea level
+    46.9, M       Height of geoid(mean sea level) above WGS84
+    ellipsoid
+    (empty field) time in seconds since last DGPS update
+    (empty field) DGPS station ID number
+    47          the checksum data, always begins with
+    */
+
+    strcpy(correctedNMEA, "");
+
+    strcat(correctedNMEA, "$GNGGA,");
+
+    strcat(correctedNMEA, fixTime);
+    strcat(correctedNMEA, ",");
+
+    //convert to DM.S from Degrees
+    double latMinu = abs(pivotLat);
+    double longMinu = abs(pivotLon);
+
+    int latDeg = abs(pivotLat);
+    int longDeg = abs(pivotLon);
+
+    latMinu -= latDeg;
+    longMinu -= longDeg;
+
+    latMinu = latMinu * 60.0;
+    longMinu = longMinu * 60.0;
+
+    latDeg *= 100.0;
+    longDeg *= 100.0;
+
+    double latNMEA = (double)latMinu + latDeg;
+    double longNMEA = (double)longMinu + longDeg;
+
+    dtostrf(latNMEA, 9, 5, correctedLatitude);
+    strcat(correctedNMEA, correctedLatitude);
+    strcat(correctedNMEA, ",");
+
+    if (pivotLat >= 0) strcat(correctedNMEA, "N");
+    else strcat(correctedNMEA, "S");
+    strcat(correctedNMEA, ",");
+
+    if (longNMEA < 10000.0) strcat(correctedNMEA, "0");
+    dtostrf(longNMEA, 9, 5, correctedLongitude);
+    strcat(correctedNMEA, correctedLongitude);
+    strcat(correctedNMEA, ",");
+
+    if (pivotLon >= 0) strcat(correctedNMEA, "E");
+    else strcat(correctedNMEA, "W");
+    strcat(correctedNMEA, ",");
+
+    strcat(correctedNMEA, fixQuality);
+    strcat(correctedNMEA, ",");
+
+    strcat(correctedNMEA, numSats);
+    strcat(correctedNMEA, ",");
+
+    strcat(correctedNMEA, HDOP);
+    strcat(correctedNMEA, ",");
+
+    strcat(correctedNMEA, altitude);
+    strcat(correctedNMEA, ",M,");
+
+    strcat(correctedNMEA, geoid);
+    strcat(correctedNMEA, ",M,");
+
+    strcat(correctedNMEA, ageDGPS);
+    strcat(correctedNMEA, ",");
+
+    strcat(correctedNMEA, stationID);
+
+    strcat(correctedNMEA, "*");
+
+    ChecksumOutputNMEA();
+
+    strcat(correctedNMEA, "\r\n");
+
+    if (Ethernet_running)
+    {
+        int len = strlen(correctedNMEA);
+        Eth_udpPAOGI.beginPacket(Eth_ipDestination, portCorrectedNmea);
+        Eth_udpPAOGI.write(correctedNMEA, len);
+        Eth_udpPAOGI.endPacket();
+    }
+    Serial.print("c ");
+    Serial.print(correctedNMEA);
+
+    /*
+    $GPVTG, 054.7, T, 034.4, M, 005.5, N, 010.2, K * 48
+
+    VTG          Track made good and ground speed
+    054.7, T      True track made good(degrees)
+    034.4, M      Magnetic track made good
+    005.5, N      Ground speed, knots
+    010.2, K      Ground speed, Kilometers per hour
+    48          Checksum
+    */
 
 
+    strcpy(correctedNMEA, "");
+
+    strcat(correctedNMEA, "$GNVTG,");
+
+    dtostrf(fixHeading, 3, 1, correctedHeading);
+    strcat(correctedNMEA, correctedHeading);
+    strcat(correctedNMEA, ",T,");
+
+    strcat(correctedNMEA, vtgMagHeading);
+    strcat(correctedNMEA, ",M,");
+
+    strcat(correctedNMEA, speedKnots);
+    strcat(correctedNMEA, ",N,");
+
+    strcat(correctedNMEA, speedKm);
+    strcat(correctedNMEA, ",K,D");
+
+    strcat(correctedNMEA, "*");
+
+    ChecksumOutputNMEA();
+
+    strcat(correctedNMEA, "\r\n");
+
+    if (Ethernet_running)
+    {
+        int len = strlen(correctedNMEA);
+        Eth_udpPAOGI.beginPacket(Eth_ipDestination, portCorrectedNmea);
+        Eth_udpPAOGI.write(correctedNMEA, len);
+        Eth_udpPAOGI.endPacket();
+    }
+    Serial.print("c ");
+    Serial.print(correctedNMEA);
+
+}
+
+void ChecksumOutputNMEA(void)
+{
+    int16_t sum = 0;
+    int16_t inx = 0;
+    char tmp;
+
+    // The checksum calc starts after '$' and ends before '*'
+    for (inx = 1; inx < 200; inx++)
+    {
+        tmp = correctedNMEA[inx];
+
+        // * Indicates end of data and start of checksum
+        if (tmp == '*')
+        {
+            break;
+        }
+
+        sum ^= tmp;    // Build checksum
+    }
+
+    byte chk = (sum >> 4);
+    char hex[2] = { asciiHex[chk], 0 };
+    strcat(correctedNMEA, hex);
+
+    chk = (sum % 16);
+    char hex2[2] = { asciiHex[chk], 0 };
+    strcat(correctedNMEA, hex2);
 }

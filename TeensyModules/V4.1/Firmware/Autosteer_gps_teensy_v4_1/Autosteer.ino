@@ -251,7 +251,7 @@ void autosteerSetup()
   }
   else
   {
-    Autosteer_running = false;  //Turn off auto steer if no ethernet (Maybe running T4.0)
+    //Autosteer_running = false;  //If this runs, Autosteer_running is already "false", redundant line
 //    if(!Ethernet_running)Serial.println("Ethernet not available");
     Serial.println("Autosteer disabled, GPS only mode");   
     return;
@@ -383,6 +383,7 @@ void autosteerLoop()
       adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
       steeringPosition = adc.getConversion();
       adc.triggerConversion();//ADS1115 Single Mode
+      steeringPosition = 6805 * 2;  // for JD_DAC steering, just send "center WAS" data
 
       steeringPosition = (steeringPosition >> 1); //bit shift by 2  0 to 13610 is 0 to 5v
       helloSteerPosition = steeringPosition - 6800;
@@ -429,7 +430,11 @@ void autosteerLoop()
           digitalWrite(PWM2_RPWM, 1);
         }
       }
-      else digitalWrite(DIR1_RL_ENABLE, 1);
+      else
+      {
+        digitalWrite(DIR1_RL_ENABLE, 1);
+        jdDac.steerEnable(true);
+      }
 
       steerAngleError = steerAngleActual - steerAngleSetPoint;   //calculate the steering error
       //if (abs(steerAngleError)< steerSettings.lowPWM) steerAngleError = 0;
@@ -456,7 +461,11 @@ void autosteerLoop()
           digitalWrite(PWM2_RPWM, 0);
         }
       }
-      else digitalWrite(DIR1_RL_ENABLE, 0); //IBT2
+      else
+      {
+          digitalWrite(DIR1_RL_ENABLE, 0);
+          jdDac.steerEnable(false);
+      }
 
       pwmDrive = 0; //turn off steering motor
       motorDrive(); //out to motors the pwm value
