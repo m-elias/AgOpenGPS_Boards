@@ -46,6 +46,9 @@
 
 #define CONST_180_DIVIDED_BY_PI 57.2957795130823
 
+#define WAS_SENSOR_PIN A0       //ADC0
+//#define ANALOG_SENSOR_PIN A1    //ADC1
+
 #include <Wire.h>
 #include <EEPROM.h>
 #include "zADS1115.h"
@@ -205,6 +208,16 @@ void autosteerSetup()
   pinMode(CURRENT_SENSOR_PIN, INPUT_DISABLE);
   pinMode(PRESSURE_SENSOR_PIN, INPUT_DISABLE);
 
+  //WAS A/D convertor setup
+  pinMode(WAS_SENSOR_PIN, INPUT_DISABLE); //AO
+  //pinMode(ANALOG_SENSOR_PIN, INPUT_DISABLE); //A1
+
+  adcWAS->adc0->setAveraging(16); // set number of averages
+  adcWAS->adc0->setResolution(12); // set bits of resolution
+  adcWAS->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED); // change the conversion speed
+  adcWAS->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED); // change the sampling speed
+
+
   //set up communication
   Wire1.end();
   Wire1.begin();
@@ -217,7 +230,8 @@ void autosteerSetup()
   else
   {
     Serial.println("ADC Connecton FAILED!");
-    Autosteer_running = false;
+    //Autosteer_running = false;
+    Serial.println("bypassing, Autosteer_running = true");
   }
 
   //50Khz I2C
@@ -274,13 +288,26 @@ void autosteerLoop()
 
   if (currentTime - autsteerLastTime >= LOOP_TIME)
   {
+    //Serial.print("\rAS loop hz: "); Serial.println(1000 / (currentTime - autsteerLastTime));
     autsteerLastTime = currentTime;
+    uint32_t autsteerStartTimeuS = micros();
 
     //reset debounce
     encEnable = true;
 
     //If connection lost to AgOpenGPS, the watchdog will count up and turn off steering
-    if (watchdogTimer++ > 250) watchdogTimer = WATCHDOG_FORCE_VALUE;
+    if (watchdogTimer++ > 250){
+      watchdogTimer = WATCHDOG_FORCE_VALUE;
+      
+      noTone(velocityPWM_Pin);
+    }
+
+    //read section inputs
+    readSectionInputs();
+    
+    for (int c = 0; c < numSectionInputs; c++){
+      pinMode(sectionInputs[c], INPUT_PULLUP);
+    }
 
     //read all the switches
     workSwitch = digitalRead(WORKSW_PIN);  // read work switch
@@ -325,6 +352,7 @@ void autosteerLoop()
         previous = 0;
       }
     }
+    //Serial.print("\r\nsteerSwitch: "); Serial.println(steerSwitch);
 
     if (steerConfig.ShaftEncoder && pulseCount >= steerConfig.PulseCountMax)
     {
@@ -380,21 +408,26 @@ void autosteerLoop()
     //get steering position
     if (steerConfig.SingleInputWAS)   //Single Input ADS
     {
-      adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
+      /*adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
       steeringPosition = adc.getConversion();
       adc.triggerConversion();//ADS1115 Single Mode
 
       steeringPosition = (steeringPosition >> 1); //bit shift by 2  0 to 13610 is 0 to 5v
-      helloSteerPosition = steeringPosition - 6800;
+      helloSteerPosition = steeringPosition - 6800;*/
+
+      steeringPosition = adcWAS->adc0->analogRead(WAS_SENSOR_PIN);
+      helloSteerPosition = steeringPosition - 2048;
+      //Serial.print("\r A0: "); Serial.println(steeringPosition);
+      //helloSteerPosition = adcWAS->adc0->analogRead(A1);
     }
     else    //ADS1115 Differential Mode
     {
-      adc.setMux(ADS1115_REG_CONFIG_MUX_DIFF_0_1);
+      /*adc.setMux(ADS1115_REG_CONFIG_MUX_DIFF_0_1);
       steeringPosition = adc.getConversion();
       adc.triggerConversion();
 
       steeringPosition = (steeringPosition >> 1); //bit shift by 2  0 to 13610 is 0 to 5v
-      helloSteerPosition = steeringPosition - 6800;
+      helloSteerPosition = steeringPosition - 6800;*/
     }
 
     //DETERMINE ACTUAL STEERING POSITION
@@ -403,13 +436,15 @@ void autosteerLoop()
     //  ***** make sure that negative steer angle makes a left turn and positive value is a right turn *****
     if (steerConfig.InvertWAS)
     {
-      steeringPosition = (steeringPosition - 6805  - steerSettings.wasOffset);   // 1/2 of full scale
-      steerAngleActual = (float)(steeringPosition) / -steerSettings.steerSensorCounts;
+      // 6805 centering value for ADS, 2048 for A0
+        steeringPosition = (steeringPosition - 2048 - steerSettings.wasOffset);   // 1/2 of full scale
+        steerAngleActual = (float)(steeringPosition) / -steerSettings.steerSensorCounts;
     }
     else
     {
-      steeringPosition = (steeringPosition - 6805  + steerSettings.wasOffset);   // 1/2 of full scale
-      steerAngleActual = (float)(steeringPosition) / steerSettings.steerSensorCounts;
+      // 6805 centering value for ADS, 2048 for A0
+        steeringPosition = (steeringPosition - 2048 + steerSettings.wasOffset);   // 1/2 of full scale
+        steerAngleActual = (float)(steeringPosition) / steerSettings.steerSensorCounts;
     }
 
     //Ackerman fix
@@ -465,6 +500,8 @@ void autosteerLoop()
       digitalWrite (AUTOSTEER_STANDBY_LED, 1);
       digitalWrite (AUTOSTEER_ACTIVE_LED, 0);
     }
+    //Serial.print("\rAS loop time: "); Serial.println(micros() - autsteerStartTimeuS);
+    //Serial.print("\rAS loop time: "); Serial.println(systick_millis_count - autsteerLastTime);
   } //end of timed loop
 
   //This runs continuously, outside of the timed loop, keeps checking for new udpData, turn sense
@@ -711,6 +748,9 @@ void ReceiveUdp()
                 helloFromAutoSteer[9] = switchByte;
 
                 SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
+
+                SendUdp(helloFromMachine, sizeof(helloFromMachine), Eth_ipDestination, portDestination);
+                
                 }
                 if(useBNO08x || useCMPS)
                 {
@@ -759,6 +799,51 @@ void ReceiveUdp()
 
                     //off to AOG
                     SendUdp(scanReply, sizeof(scanReply), ipDest, portDest);
+
+                    if (!passThroughGPS && !passThroughGPS2)
+                    {
+                        Serial.println(inoVersion);
+
+                        Serial.print("\r\nCPU Temp = ");
+                        float temp = tempmonGetTemp();
+                        Serial.print(temp, 2);
+                        Serial.println(" degC");
+                        Serial.print("CPU Speed = ");
+                        Serial.println(F_CPU_ACTUAL);
+                        Serial.print("GPS Baud Rate = ");
+                        Serial.println(baudGPS);
+
+                        Serial.print("\r\nAdapter IP: ");
+                        Serial.print(rem_ip[0]); Serial.print(" . ");
+                        Serial.print(rem_ip[1]); Serial.print(" . ");
+                        Serial.print(rem_ip[2]); Serial.print(" . ");
+                        Serial.print(rem_ip[3]);
+
+                        Serial.print("\r\nModule  IP: ");
+                        Serial.print(Eth_myip[0]); Serial.print(" . ");
+                        Serial.print(Eth_myip[1]); Serial.print(" . ");
+                        Serial.print(Eth_myip[2]); Serial.print(" . ");
+                        Serial.print(Eth_myip[3]); Serial.println();
+
+                        if (!Autosteer_running) Serial.println("\r\n!! Autosteer disabled... Check ADS1115");
+                        else if (PWM_Frequency == 0) Serial.println("\r\nAutosteer running, PWM Frequency = 490hz");
+                        else if (PWM_Frequency == 1) Serial.println("\r\nAutosteer running, PWM Frequency = 122hz");
+                        else if (PWM_Frequency == 2) Serial.println("\r\nAutosteer running, PWM Frequency = 3921hz");
+
+                        if (useBNO08x) Serial.println("\r\nBNO08x available via I2C");
+                        else if (useCMPS) Serial.println("\r\nCMPS14 available via I2C");
+                        else if (useBNO08xRVC) Serial.println("\r\nBNO08x available via Serial/RVC Mode");
+                        else Serial.println("\r\n!! No IMU available");
+
+                        if (GGA_Available == false) Serial.println("\r\n!! GPS Data Missing... Check F9P Config");
+                        else if (!useDual) Serial.println("\r\nGPS Single GPS mode");
+                        else if (useDual && !dualDataFail && !dualRTKFail && !dualBaselineFail) Serial.println("\r\nGPS Dual GPS mode");
+                        else if (dualDataFail) Serial.println("\r\n!! Dual Data Checksum Failed");
+                        else if (dualRTKFail) Serial.println("\r\n!! Dual RTK/Quality Failed... Check Antennas");
+                        else if (dualBaselineFail) Serial.println("\r\n!! Dual Baseline Moving Too Much... Check Antennas");
+
+                        Serial.println("\r\n --------- ");
+                    }
                 }
             }
         } //end if 80 81 7F

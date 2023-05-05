@@ -25,6 +25,10 @@
 // CFG-UART2-BAUDRATE 460800
 // Serial 2 In RTCM
 
+#include "reset.h"
+//Reset(uint8_t _btnIO, uint16_t _btnPressPeriod = 10000, uint8_t _ledIO = LED_BUILTIN)
+Reset teensyReset(A12, 2000);  //Used for Teensy reboot (short press) & reset to firmware default (10s long press, work in progress)
+
 /************************* User Settings *************************/
 // Serial Ports
 #define SerialAOG Serial                //AgIO USB conection
@@ -36,7 +40,7 @@ HardwareSerial* SerialGPSTmp = NULL;
 
 const int32_t baudAOG = 115200;
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
+const int32_t baudRTK = 115200;
 
 // Baudrates for detecting UBX receiver
 uint32_t baudrates[]
@@ -106,6 +110,7 @@ unsigned int AOGNtripPort = 2233;       // port NTRIP data from AOG comes in
 unsigned int AOGAutoSteerPort = 8888;   // port Autosteer data from AOG comes in
 unsigned int portDestination = 9999;    // Port of AOG that listens
 char Eth_NTRIP_packetBuffer[512];       // buffer for receiving ntrip data
+char Eth_NEMA_packetBuffer[512];        // buffer for receiving NEMA data
 
 // An EthernetUDP instance to let us send and receive packets over UDP
 EthernetUDP Eth_udpPAOGI;     //Out port 5544
@@ -217,13 +222,16 @@ struct ubxPacket
 	////sfe_ublox_packet_validity_e classAndIDmatch; // Goes from NOT_DEFINED to VALID or NOT_VALID when the Class and ID match the requestedClass and requestedID
 };
 
+#include "sprayer.h"
+
+
 // Setup procedure ------------------------
 void setup()
 {
     delay(500);                         //Small delay so serial can monitor start up
     //set_arm_clock(150000000);           //Set CPU speed to 150mhz
-    //Serial.print("CPU speed set to: ");
-    //Serial.println(F_CPU_ACTUAL);
+    Serial.print("CPU speed set to: ");
+    Serial.println(F_CPU_ACTUAL);
 
   pinMode(GGAReceivedLED, OUTPUT);
   pinMode(Power_on_LED, OUTPUT);
@@ -341,7 +349,15 @@ void setup()
   Serial.println(useBNO08x);
 
   Serial.println("\r\nEnd setup, waiting for GPS...\r\n");
+  for (int c = 0; c < numSectionInputs; c++){
+    pinMode(sectionInputs[c], INPUT_PULLUP);
+  }
+
+
+
 }
+
+elapsedMillis rvcTimer;
 
 void loop()
 {
