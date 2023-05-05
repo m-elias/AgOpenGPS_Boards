@@ -282,6 +282,7 @@ void setup()
   Serial.println("\r\nStarting Ethernet...");
   EthernetStart();
 
+/*
   Serial.println("\r\nStarting IMU...");
   //test if CMPS working
   uint8_t error;
@@ -352,7 +353,7 @@ void setup()
       }
   }
 
-  delay(100);
+  delay(100);*/
   Serial.print("\r\nuseCMPS = ");
   Serial.println(useCMPS);
   Serial.print("useBNO08x = ");
@@ -365,7 +366,6 @@ void loop()
 {
 
 	jdDac.loop();
-	jdDac.ch4Output();
 
 	if (teensyReset.update()) {  // true return means reset settings to defaults
 		// set to firmware defaults code goes here

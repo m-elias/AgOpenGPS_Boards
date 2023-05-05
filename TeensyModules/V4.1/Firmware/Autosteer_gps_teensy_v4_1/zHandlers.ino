@@ -614,8 +614,8 @@ void BuildCorrectedNMEA(void)
         Eth_udpPAOGI.write(correctedNMEA, len);
         Eth_udpPAOGI.endPacket();
     }
-    Serial.print("c ");
-    Serial.print(correctedNMEA);
+    //Serial.print("c ");
+    //Serial.print(correctedNMEA);
 
     /*
     $GPVTG, 054.7, T, 034.4, M, 005.5, N, 010.2, K * 48
@@ -659,8 +659,8 @@ void BuildCorrectedNMEA(void)
         Eth_udpPAOGI.write(correctedNMEA, len);
         Eth_udpPAOGI.endPacket();
     }
-    Serial.print("c ");
-    Serial.print(correctedNMEA);
+    //Serial.print("c ");
+    //Serial.print(correctedNMEA);
 
 }
 

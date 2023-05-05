@@ -73,7 +73,8 @@ public:
 
 	void loop(){
 
-    if (!ready){
+    if (!ready && initRetryTimer > 2000){
+      initRetryTimer = 0;
       Serial.println("\nAttempting JD DAC init");
       if (init()){
         Serial.println("-JD DAC init successful");
@@ -85,7 +86,7 @@ public:
         if (printSWS) printSWSdata();
         //Serial.println("ads update");
       }
-      
+      ch4Output();
     }
   
 
@@ -272,6 +273,7 @@ public:
 
 private:
 	Stream* stream = NULL;
+  elapsedMillis initRetryTimer = 0;
 	bool ready = false;
 	bool steerOutputEnabled = 0;
 	bool ch4Enabled = 0;

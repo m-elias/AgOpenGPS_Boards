@@ -706,6 +706,36 @@ void ReceiveUdp()
                 steerConfigInit();
 
             }//end FB
+
+            else if (autoSteerUdpData[3] == 0xD0)  //Corrected GPS Data
+            {
+                uint32_t encodedAngle;
+                uint16_t encodedInt16;
+
+                encodedAngle = ((uint32_t)(autoSteerUdpData[5] | autoSteerUdpData[6] << 8 | autoSteerUdpData[7] << 16 | autoSteerUdpData[8] << 24));
+                pivotLat = (((double)encodedAngle * 0.0000001) - 210);
+
+                encodedAngle = ((uint32_t)(autoSteerUdpData[9] | autoSteerUdpData[10] << 8 | autoSteerUdpData[11] << 16 | autoSteerUdpData[12] << 24));
+                pivotLon = (((double)encodedAngle * 0.0000001) - 210);
+
+                encodedInt16 = ((uint16_t)(autoSteerUdpData[13] | autoSteerUdpData[14] << 8));
+                fixHeading = ((double)encodedInt16 / 128);
+
+                encodedInt16 = ((uint16_t)(autoSteerUdpData[15] | autoSteerUdpData[16] << 8));
+                pivotAltitude = ((double)encodedInt16 * 0.01);
+
+                static int GPS_5hz = 0;
+
+                if (GPS_5hz > 0)
+                {
+                    GPS_5hz = 0;
+                    BuildCorrectedNMEA();
+                }
+
+                GPS_5hz++;
+
+            }//end D0
+            
             else if (autoSteerUdpData[3] == 200) // Hello from AgIO
             {
                 if(Autosteer_running)
