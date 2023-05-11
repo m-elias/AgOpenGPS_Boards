@@ -380,10 +380,13 @@ void autosteerLoop()
     //get steering position
     if (steerConfig.SingleInputWAS)   //Single Input ADS
     {
-      adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
+      /*adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
       steeringPosition = adc.getConversion();
-      adc.triggerConversion();//ADS1115 Single Mode
-      steeringPosition = 6805 * 2;  // for JD_DAC steering, just send "center WAS" data
+      adc.triggerConversion();//ADS1115 Single Mode*/
+
+      //main adc not used for JD_DAC steering as it's not isolated
+      //steeringPosition = 6800 * 2;  // for JD_DAC steering, just send "center WAS" data
+      steeringPosition = jdDac.getWAS();
 
       steeringPosition = (steeringPosition >> 1); //bit shift by 2  0 to 13610 is 0 to 5v
       helloSteerPosition = steeringPosition - 6800;

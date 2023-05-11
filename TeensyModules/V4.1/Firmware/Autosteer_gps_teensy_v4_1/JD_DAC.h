@@ -22,10 +22,10 @@ public:
 
 	}
 
-	uint8_t steerOutput(int16_t _pwmDrive) {	// pwmDrive +-(minPWM - Max Limit)
+	uint8_t steerOutput(int16_t _tractorPWM) {	// pwmDrive +-(minPWM - Max Limit)
 		if (steerOutputEnabled) {
-			output = map(_pwmDrive, 0, 254, 2047, 3554);		// 0/2047 is center, 254/3554 is one extreme
-			outputInvt = map(_pwmDrive, 0, 254, 2047, 542);		// 0/2047 is center, 254/542 is the other extreme
+			output = map(_tractorPWM, 0, 254, 2047, 3554);		// 0/2047 is center, 254/3554 is one extreme
+			outputInvt = map(_tractorPWM, 0, 254, 2047, 542);		// 0/2047 is center, 254/542 is the other extreme
 			/*debugPrint("\r\n_pwmDrive: ");
 			debugPrint(_pwmDrive);
 			debugPrint(" -> ");
@@ -43,15 +43,21 @@ public:
    return 128;
   }
 
-	void ch4Output() {
+	void ch4Output(int16_t _toolPWM) {
 		if (ch4Enabled) {
-			if (millis() > sweepTriggerTime) {
+      // 0.5v - 2.25v and 2.75v - 4.5v
+      //  430 - 1932  and  2360 - 3863
+      uint16_t ch4Output = map(_toolPWM, 0, 254, 2047, 3863);
+      ch4Output = min(ch4Output, 3863);   // limit to max of 3863/4.5v
+      ch4Output = max(ch4Output, 430);    // limit to min of 430/0.5v
+      dac.analogWrite(3, ch4Output, MCP4728::PWR_DOWN::NORMAL);
+			/*if (millis() > sweepTriggerTime) {
 				sweep += 1;
 				if (sweep > 4090) sweep = 0;
 				dac.analogWrite(3, sweep, MCP4728::PWR_DOWN::NORMAL);
 				sweepTriggerTime += 20;
 				if (millis() > sweepTriggerTime) sweepTriggerTime = millis() + 50;
-			}
+			}*/
 		}
 	}
 
@@ -71,6 +77,22 @@ public:
 		}
 	}
 
+  void toolSteerEnable(bool _enable) {
+    if (ready){
+      if (_enable != ch4Enabled) {
+        if (_enable) {
+          debugPrint("\r\nCh4 tool steer output enabled");
+        }
+        else
+        {
+          dac.analogWrite(3, 2047, MCP4728::PWR_DOWN::NORMAL);  // center position for JD remote SCV signal
+          debugPrint("\r\nCh4 tool steer output disabled");
+        }
+        ch4Enabled = _enable;
+      }
+    }
+  }
+
 	void loop(){
 
     if (!ready && initRetryTimer > 2000){
@@ -82,11 +104,11 @@ public:
         Serial.println("-JD DAC init failed");
       }
     } else {
-      if (updateAdsReadings()) {
-        if (printSWS) printSWSdata();
+      if (updateAdsReadingCh0()) {
+        //if (printSWS) printSWSdata();
         //Serial.println("ads update");
       }
-      ch4Output();
+      //ch4Output();
     }
   
 
@@ -106,21 +128,19 @@ public:
 		if (digitalRead(dacDevBtn) == LOW) {
 			while (digitalRead(dacDevBtn) == LOW) delay(5);
 
-			if (ch4Enabled) {
-				ch4Enabled = false;
-				dac.analogWrite(3, sweep, MCP4728::PWR_DOWN::GND_500KOHM);
-				debugPrint("\r\nch4 output disabled");
-			} else {
-				ch4Enabled = true;
-				debugPrint("\r\nch4 output enabled");
-			}
+    toolSteerEnable(!ch4Enabled);
 			
 		}
 
 
 	}
 
-	bool updateAdsReadings(){
+  int16_t getWAS(){
+    if (ready) return steeringWheelSensor[0]; // stored ch 0 reading
+    else return 13600; // center value
+  }
+
+	bool updateAdsReadings4chSeq(){
 		// 32-33 ms per channel @ 32SPS, 96-97 ms to update 3 analog channels
 		// 9-10 ms per channel @ 128SPS, 36-37 ms to update 4 analog channels
 		if (dac_ads.isConversionDone()) {	// isConvDone only takes a split second to return false so hammer away
@@ -155,6 +175,30 @@ public:
 
 		return false;
 	}
+
+  bool updateAdsReadingCh0(){
+    // 32-33 ms per channel @ 32SPS, 96-97 ms to update 3 analog channels
+    // 9-10 ms per channel @ 128SPS, 36-37 ms to update 4 analog channels
+    if (adsIndex == 0){
+      if (dac_ads.isConversionDone()) { // isConvDone only takes a split second to return false so hammer away
+        currentAdsUpdateTime = millis();
+        //debugPrint("\r\n"); debugPrint(currentAdsUpdateTime); debugPrint(" "); debugPrint(currentAdsUpdateTime - lastAdsUpdateTime);
+        lastAdsUpdateTime = currentAdsUpdateTime;
+  
+        steeringWheelSensor[0] = dac_ads.getConversion();// +adsOffset[adsIndex];
+        if (steeringWheelSensor[0] > 60000) steeringWheelSensor[0] = 0;
+  
+        dac_ads.triggerConversion();
+  
+      }
+    } else {
+      dac_ads.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
+      dac_ads.triggerConversion();
+      adsIndex = 0;
+    }
+    return false;
+  }
+
 
 	void printSWSdata() {
 		currentPrintTime = millis();
@@ -198,19 +242,23 @@ public:
 
 		// set live modes, Live modes are loaded from EE right after saving to EE below but only if EE is updated
 		dac.selectVref(MCP4728::VREF::VDD, MCP4728::VREF::VDD, MCP4728::VREF::VDD, MCP4728::VREF::VDD);
-		dac.selectPowerDown(DEFAULT_PWR_DOWN, DEFAULT_PWR_DOWN, DEFAULT_PWR_DOWN, DEFAULT_PWR_DOWN);
+		dac.selectPowerDown(DEFAULT_PWR_DOWN, DEFAULT_PWR_DOWN, DEFAULT_PWR_DOWN, MCP4728::PWR_DOWN::NORMAL);
 		dac.selectGain(MCP4728::GAIN::X1, MCP4728::GAIN::X1, MCP4728::GAIN::X1, MCP4728::GAIN::X1);
 
 		printStatus();
 
 		// check/set EE modes
 		// could use single EE write to all channel instead of multiple to save some time but after the first time, shouldn't need it again
-		for (int i = 0; i < 4; ++i) {
+		for (int i = 0; i < 3; ++i) {
 			if (dac.getPowerDown(i, true) != 3) {  //DEFAULT_PWR_DOWN = MCP4728::PWR_DOWN::GND_500KOHM = 3
 				debugPrint("\r\nSetting DAC EE["); debugPrint(i); debugPrint("]: "); debugPrint(dac.writeSingleChEepromModes(i, MCP4728::VREF::VDD, MCP4728::GAIN::X1, MCP4728::PWR_DOWN::GND_500KOHM));
 				delay(50);  // necessary to wait for EE to finish as not using RDY IO
 			}
 		}
+    if (dac.getPowerDown(3, true) != 0) {  //MCP4728::PWR_DOWN::NORMAL = 0
+      debugPrint("\r\nSetting DAC EE[3]: "); debugPrint(dac.writeSingleChEepromModes(3, MCP4728::VREF::VDD, MCP4728::GAIN::X1, MCP4728::PWR_DOWN::NORMAL));
+      delay(50);  // necessary to wait for EE to finish as not using RDY IO
+    }
 		printStatus();
 		debugPrint("\r\n--MCP post init");
 
