@@ -230,13 +230,15 @@ void autosteerSetup()
     EEPROM.put(0, EEP_Ident);
     EEPROM.put(10, steerSettings);
     EEPROM.put(40, steerConfig);
-    EEPROM.put(60, networkAddress);    
+    EEPROM.put(60, networkAddress);   // 3 bytes
+    EEPROM.put(70, machineConfig);    // 8 bytes
   }
   else
   {
     EEPROM.get(10, steerSettings);     // read the Settings
     EEPROM.get(40, steerConfig);
     EEPROM.get(60, networkAddress); 
+    EEPROM.get(70, machineConfig);
   }
 
   steerSettingsInit();
@@ -380,13 +382,14 @@ void autosteerLoop()
     //get steering position
     if (steerConfig.SingleInputWAS)   //Single Input ADS
     {
-      /*adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
-      steeringPosition = adc.getConversion();
-      adc.triggerConversion();//ADS1115 Single Mode*/
+      //adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
+      //steeringPosition = adc.getConversion();
+      //adc.triggerConversion();//ADS1115 Single Mode
+      //Serial.println(steeringPosition);
 
       //main adc not used for JD_DAC steering as it's not isolated
       //steeringPosition = 6800 * 2;  // for JD_DAC steering, just send "center WAS" data
-      steeringPosition = jdDac.getWAS();
+      steeringPosition = jdDac.getWAS();  // read JD SWS instead to display on AoG
 
       steeringPosition = (steeringPosition >> 1); //bit shift by 2  0 to 13610 is 0 to 5v
       helloSteerPosition = steeringPosition - 6800;
@@ -438,9 +441,13 @@ void autosteerLoop()
         digitalWrite(DIR1_RL_ENABLE, 1);
         jdDac.steerEnable(true);
       }
-
-      steerAngleError = steerAngleActual - steerAngleSetPoint;   //calculate the steering error
+      
+      //steerAngleError = steerAngleActual - steerAngleSetPoint;   //calculate the steering error
+      steerAngleError = steerAngleSetPoint; // use only set point for 2 track steering
       //if (abs(steerAngleError)< steerSettings.lowPWM) steerAngleError = 0;
+      //Serial.print(steerAngleActual); Serial.print(" ");
+      //Serial.print(steerAngleSetPoint); Serial.print(" ");
+      //Serial.print(steerAngleError); Serial.print("\r\n");
 
       calcSteeringPID();  //do the pid
       motorDrive();       //out to motors the pwm value
@@ -549,7 +556,8 @@ void ReceiveUdp()
 
         if (autoSteerUdpData[0] == 0x80 && autoSteerUdpData[1] == 0x81 && autoSteerUdpData[2] == 0x7F) //Data
         {
-            if (autoSteerUdpData[3] == 0xFE && Autosteer_running)  //254
+          //Serial.println(autoSteerUdpData[3]);
+            if (autoSteerUdpData[3] == 0xFE && Autosteer_running)  //254 Steer Data AoG -> Module
             {
                 gpsSpeed = ((float)(autoSteerUdpData[5] | autoSteerUdpData[6] << 8)) * 0.1;
                 gpsSpeedUpdateTimer = 0;
@@ -561,11 +569,6 @@ void ReceiveUdp()
 
                 //Bit 8,9    set point steer angle * 100 is sent
                 steerAngleSetPoint = ((float)(autoSteerUdpData[8] | ((int8_t)autoSteerUdpData[9]) << 8)) * 0.01; //high low bytes
-
-                //Serial.print("steerAngleSetPoint: ");
-                //Serial.println(steerAngleSetPoint);
-
-                //Serial.println(gpsSpeed);
 
                 if ((bitRead(guidanceStatus, 0) == 0) || (gpsSpeed < 0.1) || (steerSwitch == 1))
                 {
@@ -727,15 +730,15 @@ void ReceiveUdp()
                 encodedInt16 = ((uint16_t)(autoSteerUdpData[15] | autoSteerUdpData[16] << 8));
                 pivotAltitude = ((double)encodedInt16 * 0.01);
 
-                static int GPS_5hz = 0;
+                static int GPS_Hz = 0;
 
-                if (GPS_5hz > 0)
+                if (GPS_Hz > 0)
                 {
-                    GPS_5hz = 0;
+                    GPS_Hz = 0;
                     BuildCorrectedNMEA();
                 }
 
-                GPS_5hz++;
+                GPS_Hz++;
 
             }//end D0
             
@@ -743,20 +746,23 @@ void ReceiveUdp()
             {
                 if(Autosteer_running)
                 {
-                int16_t sa = (int16_t)(steerAngleActual * 100);
-
-                helloFromAutoSteer[5] = (uint8_t)sa;
-                helloFromAutoSteer[6] = sa >> 8;
-
-                helloFromAutoSteer[7] = (uint8_t)helloSteerPosition;
-                helloFromAutoSteer[8] = helloSteerPosition >> 8;
-                helloFromAutoSteer[9] = switchByte;
-
-                SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
+                    int16_t sa = (int16_t)(steerAngleActual * 100);
+    
+                    helloFromAutoSteer[5] = (uint8_t)sa;
+                    helloFromAutoSteer[6] = sa >> 8;
+    
+                    helloFromAutoSteer[7] = (uint8_t)helloSteerPosition;
+                    helloFromAutoSteer[8] = helloSteerPosition >> 8;
+                    helloFromAutoSteer[9] = switchByte;
+    
+                    SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
+    
+                    SendUdp(helloFromMachine, sizeof(helloFromMachine), Eth_ipDestination, portDestination);
+                
                 }
                 if(useBNO08x || useCMPS)
                 {
-                 SendUdp(helloFromIMU, sizeof(helloFromIMU), Eth_ipDestination, portDestination); 
+                    SendUdp(helloFromIMU, sizeof(helloFromIMU), Eth_ipDestination, portDestination); 
                 }
             }
 
@@ -802,6 +808,29 @@ void ReceiveUdp()
                     //off to AOG
                     SendUdp(scanReply, sizeof(scanReply), ipDest, portDest);
                 }
+            }
+            else if (autoSteerUdpData[3] == 238) // 0xEE Machine Config
+            {
+                machineConfig.raiseTime = autoSteerUdpData[5];
+                machineConfig.lowerTime = autoSteerUdpData[6];
+                machineConfig.enableToolLift = autoSteerUdpData[7];
+
+                //set1 
+                uint8_t sett = autoSteerUdpData[8];  //setting0     
+                if (bitRead(sett, 0)) machineConfig.isRelayActiveHigh = 1; else machineConfig.isRelayActiveHigh = 0;
+
+                machineConfig.user1 = autoSteerUdpData[9];
+                machineConfig.user2 = autoSteerUdpData[10];
+                machineConfig.user3 = autoSteerUdpData[11];
+                machineConfig.user4 = autoSteerUdpData[12];
+
+                Serial.print("User1: "); Serial.println(machineConfig.user1);
+                Serial.print("User2: "); Serial.println(machineConfig.user2);
+                Serial.print("User3: "); Serial.println(machineConfig.user3);
+                Serial.print("User4: "); Serial.println(machineConfig.user4);
+
+                //save in EEPROM
+                EEPROM.put(70, machineConfig);
             }
         } //end if 80 81 7F
     }

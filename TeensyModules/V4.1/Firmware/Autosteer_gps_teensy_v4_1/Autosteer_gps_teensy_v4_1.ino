@@ -232,6 +232,8 @@ JD_DAC jdDac(Wire1, 0x64, A14, A13);//, &SerialAOG);
 // Adafruit ships 0x60 or 0x64
 // IO A14 & A13 for btn inputs
 
+#include "machine.h"
+
 // Setup procedure ------------------------
 void setup()
 {

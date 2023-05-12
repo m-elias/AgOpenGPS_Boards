@@ -106,6 +106,7 @@ public:
     } else {
       if (updateAdsReadingCh0()) {
         //if (printSWS) printSWSdata();
+        printSWSdata();
         //Serial.println("ads update");
       }
       //ch4Output();
@@ -144,9 +145,9 @@ public:
 		// 32-33 ms per channel @ 32SPS, 96-97 ms to update 3 analog channels
 		// 9-10 ms per channel @ 128SPS, 36-37 ms to update 4 analog channels
 		if (dac_ads.isConversionDone()) {	// isConvDone only takes a split second to return false so hammer away
-			currentAdsUpdateTime = millis();
+			//currentAdsUpdateTime = millis();
 			//debugPrint("\r\n"); debugPrint(currentAdsUpdateTime); debugPrint(" "); debugPrint(currentAdsUpdateTime - lastAdsUpdateTime);
-			lastAdsUpdateTime = currentAdsUpdateTime;
+			//lastAdsUpdateTime = currentAdsUpdateTime;
 
 			steeringWheelSensor[adsIndex] = dac_ads.getConversion();// +adsOffset[adsIndex];
 			if (steeringWheelSensor[adsIndex] > 60000) steeringWheelSensor[adsIndex] = 0;
@@ -181,9 +182,9 @@ public:
     // 9-10 ms per channel @ 128SPS, 36-37 ms to update 4 analog channels
     if (adsIndex == 0){
       if (dac_ads.isConversionDone()) { // isConvDone only takes a split second to return false so hammer away
-        currentAdsUpdateTime = millis();
+        //currentAdsUpdateTime = millis();
         //debugPrint("\r\n"); debugPrint(currentAdsUpdateTime); debugPrint(" "); debugPrint(currentAdsUpdateTime - lastAdsUpdateTime);
-        lastAdsUpdateTime = currentAdsUpdateTime;
+        //lastAdsUpdateTime = currentAdsUpdateTime;
   
         steeringWheelSensor[0] = dac_ads.getConversion();// +adsOffset[adsIndex];
         if (steeringWheelSensor[0] > 60000) steeringWheelSensor[0] = 0;
@@ -224,18 +225,19 @@ public:
 	bool init() {
     ready = false;
 		debugPrint("-checking for Adafruit MCP4728 @ addr 0x");
-		//stream->print("-checking for Adafruit MCP4728 @ addr 0x");
 		debugPrint(dacAddr, HEX);
 		dac.setAddr(dacAddr);
-		dac.attach(*i2cPort);
+		i2cPort->begin();
 		i2cPort->beginTransmission(dacAddr);
 		uint8_t error = i2cPort->endTransmission();
 		if (error) {
 			debugPrint("\r\n--error: ");
 			debugPrint(error);
 			debugPrint("\r\n");
+			i2cPort->end();
 			return false;
 		}
+		dac.attach(*i2cPort);
 		debugPrint("\r\n--MCP4728 found!");
 		debugPrint("\r\n--MCP pre init\r\n");
 		printStatus();
