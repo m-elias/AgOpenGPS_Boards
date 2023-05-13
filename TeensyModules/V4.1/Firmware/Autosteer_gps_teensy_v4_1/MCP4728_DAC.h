@@ -29,8 +29,13 @@ public:
         //pin_ldac_ = pin;
         //pinMode(pin_ldac_, OUTPUT);
         //enable(false);
-        readRegisters();
+        //readRegisters();
         return;
+    }
+
+    uint8_t testConnection(){
+      wire_->beginTransmission(addr_);
+      return wire_->endTransmission();
     }
 
     //void enable(bool b){

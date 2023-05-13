@@ -65,12 +65,12 @@ public:
     if (ready){
   		if (_enable != steerOutputEnabled) {
   			if (_enable) {
-  				debugPrint("\r\nDAC output enabled");
+  				debugPrint("\r\nSteer DAC output enabled");
   			}
   			else
   			{
   				dac.selectPowerDown(DEFAULT_PWR_DOWN, DEFAULT_PWR_DOWN, DEFAULT_PWR_DOWN, MCP4728::PWR_DOWN(dac.getPowerDown(3)));
-  				debugPrint("\r\nDAC output disabled");
+  				debugPrint("\r\nSteer DAC output disabled");
   			}
   			steerOutputEnabled = _enable;
   		}
@@ -81,12 +81,12 @@ public:
     if (ready){
       if (_enable != ch4Enabled) {
         if (_enable) {
-          debugPrint("\r\nCh4 tool steer output enabled");
+          debugPrint("\r\nDAC Ch4 tool steer output enabled");
         }
         else
         {
           dac.analogWrite(3, 2047, MCP4728::PWR_DOWN::NORMAL);  // center position for JD remote SCV signal
-          debugPrint("\r\nCh4 tool steer output disabled");
+          debugPrint("\r\nDAC Ch4 tool steer output disabled");
         }
         ch4Enabled = _enable;
       }
@@ -104,12 +104,20 @@ public:
         Serial.println("-JD DAC init failed");
       }
     } else {
-      if (updateAdsReadingCh0()) {
-        //if (printSWS) printSWSdata();
-        printSWSdata();
-        //Serial.println("ads update");
+      uint32_t time1 = millis();
+      if (dac.testConnection() == 0){   // only takes 0-1ms
+        //Serial.print(millis()-time1);
+        if (updateAdsReadingCh0()) {
+          //if (printSWS) printSWSdata();
+          //printSWSdata();
+          //Serial.print(" ads update ");
+        }
+        //ch4Output();
+        //Serial.print(" "); Serial.println(millis()-time1);
+      } else {
+        ready = 0;
+        i2cPort->end();
       }
-      //ch4Output();
     }
   
 
@@ -181,7 +189,7 @@ public:
     // 32-33 ms per channel @ 32SPS, 96-97 ms to update 3 analog channels
     // 9-10 ms per channel @ 128SPS, 36-37 ms to update 4 analog channels
     if (adsIndex == 0){
-      if (dac_ads.isConversionDone()) { // isConvDone only takes a split second to return false so hammer away
+      if (dac_ads.isConversionDone()) { // isConvDone only takes a 0-1ms to return false so hammer away
         //currentAdsUpdateTime = millis();
         //debugPrint("\r\n"); debugPrint(currentAdsUpdateTime); debugPrint(" "); debugPrint(currentAdsUpdateTime - lastAdsUpdateTime);
         //lastAdsUpdateTime = currentAdsUpdateTime;
@@ -190,7 +198,7 @@ public:
         if (steeringWheelSensor[0] > 60000) steeringWheelSensor[0] = 0;
   
         dac_ads.triggerConversion();
-  
+        return true;
       }
     } else {
       dac_ads.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
@@ -227,9 +235,9 @@ public:
 		debugPrint("-checking for Adafruit MCP4728 @ addr 0x");
 		debugPrint(dacAddr, HEX);
 		dac.setAddr(dacAddr);
+    dac.attach(*i2cPort);
 		i2cPort->begin();
-		i2cPort->beginTransmission(dacAddr);
-		uint8_t error = i2cPort->endTransmission();
+		uint8_t error = dac.testConnection();
 		if (error) {
 			debugPrint("\r\n--error: ");
 			debugPrint(error);
@@ -237,7 +245,6 @@ public:
 			i2cPort->end();
 			return false;
 		}
-		dac.attach(*i2cPort);
 		debugPrint("\r\n--MCP4728 found!");
 		debugPrint("\r\n--MCP pre init\r\n");
 		printStatus();

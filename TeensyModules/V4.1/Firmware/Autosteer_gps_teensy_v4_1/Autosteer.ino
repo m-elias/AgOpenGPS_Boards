@@ -157,6 +157,24 @@ struct Setup {
   uint8_t IsUseY_Axis = 0;     //Set to 0 to use X Axis, 1 to use Y avis
 }; Setup steerConfig;               // 9 bytes
 
+struct ToolSteer {
+  int16_t XTE = 0;           // tool XTE
+  uint8_t status = 0;        // tool status
+  int16_t vehXTE = 0;        // vehicle XTE
+  uint8_t speed = 0;
+};  ToolSteer toolSteer;     // 6 bytes
+
+struct ToolConfig {
+  uint8_t Kp = 0;          
+  uint8_t integral = 0;     
+  uint8_t minPWM = 0;       
+  uint8_t maxPWM = 0;
+  uint8_t windup = 0;
+  uint8_t wasCounts = 0;
+  int8_t wasOffset = 0;
+  uint8_t maxSteer = 0;
+};  ToolConfig toolConfig;     // 8 bytes
+
 void steerConfigInit()
 {
   if (steerConfig.CytronDriver) 
@@ -232,6 +250,7 @@ void autosteerSetup()
     EEPROM.put(40, steerConfig);
     EEPROM.put(60, networkAddress);   // 3 bytes
     EEPROM.put(70, machineConfig);    // 8 bytes
+    EEPROM.put(80, toolConfig);       // 8 bytes
   }
   else
   {
@@ -239,6 +258,7 @@ void autosteerSetup()
     EEPROM.get(40, steerConfig);
     EEPROM.get(60, networkAddress); 
     EEPROM.get(70, machineConfig);
+    EEPROM.get(80, toolConfig);
   }
 
   steerSettingsInit();
@@ -755,11 +775,12 @@ void ReceiveUdp()
                     helloFromAutoSteer[8] = helloSteerPosition >> 8;
                     helloFromAutoSteer[9] = switchByte;
     
-                    SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
-    
-                    SendUdp(helloFromMachine, sizeof(helloFromMachine), Eth_ipDestination, portDestination);
-                
+                    if (dac.testConnection() == 0)
+                      SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
                 }
+                
+                SendUdp(helloFromMachine, sizeof(helloFromMachine), Eth_ipDestination, portDestination);
+
                 if(useBNO08x || useCMPS)
                 {
                     SendUdp(helloFromIMU, sizeof(helloFromIMU), Eth_ipDestination, portDestination); 
@@ -831,6 +852,24 @@ void ReceiveUdp()
 
                 //save in EEPROM
                 EEPROM.put(70, machineConfig);
+
+                toolConfig.Kp = machineConfig.user1;
+                toolConfig.minPWM = machineConfig.user2;
+                toolConfig.maxPWM = machineConfig.user3;
+                //toolConfig. = machineConfig.user4;
+                EEPROM.put(80, toolConfig);
+            }
+            else if (autoSteerUdpData[3] == 233) // 0xE9 Tool Steering
+            {
+                toolSteer.XTE = (autoSteerUdpData[5] | autoSteerUdpData[6] << 8);
+                toolSteer.status = autoSteerUdpData[7];
+                toolSteer.vehXTE = (autoSteerUdpData[8] | autoSteerUdpData[9] << 8);
+                toolSteer.speed = autoSteerUdpData[10]; // /10
+
+                Serial.print("XTE: "); Serial.println(toolSteer.XTE);
+                Serial.print("status: "); Serial.println(toolSteer.status);
+                Serial.print("vehXTE: "); Serial.println(toolSteer.vehXTE);
+                Serial.print("speed: "); Serial.println(toolSteer.speed);
             }
         } //end if 80 81 7F
     }
