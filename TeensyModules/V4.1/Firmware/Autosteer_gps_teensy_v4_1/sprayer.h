@@ -32,7 +32,7 @@ bool pressSensorState[numPressSensors];
 bool pressSensorPrevState[numPressSensors];*/
 
 uint8_t numSectionInputs = 5;
-uint8_t sectionInputs[5] = {A13, A16, A5, A4, A11 };
+uint8_t sectionInputs[5] = { A13, A16, A5, A4, A11 };
 
 
 /*struct Pressure {

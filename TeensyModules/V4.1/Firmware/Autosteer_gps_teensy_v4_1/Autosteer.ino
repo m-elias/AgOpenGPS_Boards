@@ -51,8 +51,8 @@
 
 #include <Wire.h>
 #include <EEPROM.h>
-#include "zADS1115.h"
-ADS1115_lite adc(ADS1115_DEFAULT_ADDRESS);     // Use this for the 16-bit version ADS1115
+//#include "zADS1115.h"
+//ADS1115_lite adc(ADS1115_DEFAULT_ADDRESS);     // Use this for the 16-bit version ADS1115
 
 #include <IPAddress.h>
 #include "BNO08x_AOG.h"
@@ -216,14 +216,15 @@ void autosteerSetup()
   adcWAS->adc0->setResolution(12); // set bits of resolution
   adcWAS->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED); // change the conversion speed
   adcWAS->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED); // change the sampling speed
-
+  Serial.println("Using Teensy ADC, 16 averages, 12 bits");
+  Autosteer_running = true;
 
   //set up communication
-  Wire1.end();
-  Wire1.begin();
+  //Wire1.end();
+  //Wire1.begin();
     
   // Check ADC 
-  if(adc.testConnection())
+  /*if(adc.testConnection())
   {
     Serial.println("ADC Connecton OK");
   }
@@ -232,7 +233,7 @@ void autosteerSetup()
     Serial.println("ADC Connecton FAILED!");
     //Autosteer_running = false;
     Serial.println("bypassing, Autosteer_running = true");
-  }
+  }*/
 
   //50Khz I2C
   //TWBR = 144;   //Is this needed?
@@ -271,8 +272,8 @@ void autosteerSetup()
     return;
   }
 
-  adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
-  adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
+  //adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
+  //adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
 
 }// End of Setup
 
@@ -802,8 +803,6 @@ void ReceiveUdp()
 
                     if (!passThroughGPS && !passThroughGPS2)
                     {
-                        Serial.println(inoVersion);
-
                         Serial.print("\r\nCPU Temp = ");
                         float temp = tempmonGetTemp();
                         Serial.print(temp, 2);
@@ -832,16 +831,15 @@ void ReceiveUdp()
 
                         if (useBNO08x) Serial.println("\r\nBNO08x available via I2C");
                         else if (useCMPS) Serial.println("\r\nCMPS14 available via I2C");
-                        else if (useBNO08xRVC) Serial.println("\r\nBNO08x available via Serial/RVC Mode");
                         else Serial.println("\r\n!! No IMU available");
 
-                        if (GGA_Available == false) Serial.println("\r\n!! GPS Data Missing... Check F9P Config");
+/*                        if (GGA_Available == false) Serial.println("\r\n!! GPS Data Missing... Check F9P Config");
                         else if (!useDual) Serial.println("\r\nGPS Single GPS mode");
                         else if (useDual && !dualDataFail && !dualRTKFail && !dualBaselineFail) Serial.println("\r\nGPS Dual GPS mode");
                         else if (dualDataFail) Serial.println("\r\n!! Dual Data Checksum Failed");
                         else if (dualRTKFail) Serial.println("\r\n!! Dual RTK/Quality Failed... Check Antennas");
                         else if (dualBaselineFail) Serial.println("\r\n!! Dual Baseline Moving Too Much... Check Antennas");
-
+*/
                         Serial.println("\r\n --------- ");
                     }
                 }

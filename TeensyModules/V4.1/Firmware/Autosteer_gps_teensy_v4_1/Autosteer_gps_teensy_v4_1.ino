@@ -40,7 +40,7 @@ HardwareSerial* SerialGPSTmp = NULL;
 
 const int32_t baudAOG = 115200;
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 115200;
+const int32_t baudRTK = 460800;
 
 // Baudrates for detecting UBX receiver
 uint32_t baudrates[]
@@ -69,6 +69,12 @@ const bool invertRoll= true;  //Used for IMU with dual antenna
 
 #define REPORT_INTERVAL 20    //BNO report time, we want to keep reading it quick & offen. Its not timmed to anything just give constant data.
 uint32_t READ_BNO_TIME = 0;   //Used stop BNO data pile up (This version is without resetting BNO everytime)
+
+#include <ADC.h>
+#include <ADC_util.h>
+
+//16x oversampling medium speed 12 bit A/D object
+ADC* adcWAS = new ADC();
 
 //Status LED's
 #define GGAReceivedLED 13         //Teensy onboard LED
