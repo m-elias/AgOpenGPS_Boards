@@ -36,7 +36,7 @@ HardwareSerial* SerialGPSTmp = NULL;
 
 const int32_t baudAOG = 115200;
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 115200;     // most are using Xbee radios with default of 115200
+const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
 
 // Baudrates for detecting UBX receiver
 uint32_t baudrates[]
@@ -152,8 +152,8 @@ double headingcorr = 900;  //90deg heading correction (90deg*10)
 // Heading correction 180 degrees, because normally the heading antenna is in front, but we have it at the back
 //double headingcorr = 1800;  // 180deg heading correction (180deg*10)
 
-float baseline = 0;
-float rollDual = 0;
+double baseline = 0;
+double rollDual = 0;
 double relPosD = 0;
 double heading = 0;
 

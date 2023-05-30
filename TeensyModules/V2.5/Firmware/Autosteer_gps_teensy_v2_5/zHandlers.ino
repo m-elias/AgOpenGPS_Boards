@@ -174,105 +174,106 @@ void readBNO()
 void imuHandler()
 {
     int16_t temp = 0;
-
-    if (useCMPS)
+    if (!useDual)
     {
-        //the heading x10
-        Wire.beginTransmission(CMPS14_ADDRESS);
-        Wire.write(0x1C);
-        Wire.endTransmission();
-
-        Wire.requestFrom(CMPS14_ADDRESS, 3);
-        while (Wire.available() < 3);
-
-        roll = int16_t(Wire.read() << 8 | Wire.read());
-        if(invertRoll)
+        if (useCMPS)
         {
-          roll *= -1;
+            //the heading x10
+            Wire.beginTransmission(CMPS14_ADDRESS);
+            Wire.write(0x1C);
+            Wire.endTransmission();
+
+            Wire.requestFrom(CMPS14_ADDRESS, 3);
+            while (Wire.available() < 3);
+
+            roll = int16_t(Wire.read() << 8 | Wire.read());
+            if (invertRoll)
+            {
+                roll *= -1;
+            }
+
+            // the heading x10
+            Wire.beginTransmission(CMPS14_ADDRESS);
+            Wire.write(0x02);
+            Wire.endTransmission();
+
+            Wire.requestFrom(CMPS14_ADDRESS, 3);
+            while (Wire.available() < 3);
+
+            temp = Wire.read() << 8 | Wire.read();
+            correctionHeading = temp * 0.1;
+            correctionHeading = correctionHeading * DEG_TO_RAD;
+            itoa(temp, imuHeading, 10);
+
+            // 3rd byte pitch
+            int8_t pitch = Wire.read();
+            itoa(pitch, imuPitch, 10);
+
+            // the roll x10
+            temp = (int16_t)roll;
+            itoa(temp, imuRoll, 10);
+
+            // YawRate - 0 for now
+            itoa(0, imuYawRate, 10);
         }
 
-        // the heading x10
-        Wire.beginTransmission(CMPS14_ADDRESS);
-        Wire.write(0x02);
-        Wire.endTransmission();
+        if (useBNO08x)
+        {
+            //BNO is reading in its own timer    
+            // Fill rest of Panda Sentence - Heading
+            temp = yaw;
+            itoa(temp, imuHeading, 10);
 
-        Wire.requestFrom(CMPS14_ADDRESS, 3);
-        while (Wire.available() < 3);
+            // the pitch x10
+            temp = (int16_t)pitch;
+            itoa(temp, imuPitch, 10);
 
-        temp = Wire.read() << 8 | Wire.read();
-        correctionHeading = temp * 0.1;
-        correctionHeading = correctionHeading * DEG_TO_RAD;
-        itoa(temp, imuHeading, 10);
+            // the roll x10
+            temp = (int16_t)roll;
+            itoa(temp, imuRoll, 10);
 
-        // 3rd byte pitch
-        int8_t pitch = Wire.read();
-        itoa(pitch, imuPitch, 10);
-
-        // the roll x10
-        temp = (int16_t)roll;
-        itoa(temp, imuRoll, 10);
-
-        // YawRate - 0 for now
-        itoa(0, imuYawRate, 10);
-    }
-
-    if (useBNO08x)
-    {
-        //BNO is reading in its own timer    
-        // Fill rest of Panda Sentence - Heading
-        temp = yaw;
-        itoa(temp, imuHeading, 10);
-
-        // the pitch x10
-        temp = (int16_t)pitch;
-        itoa(temp, imuPitch, 10);
-
-        // the roll x10
-        temp = (int16_t)roll;
-        itoa(temp, imuRoll, 10);
-
-        // YawRate - 0 for now
-        itoa(0, imuYawRate, 10);
+            // YawRate - 0 for now
+            itoa(0, imuYawRate, 10);
+        }
     }
 
     // No else, because we want to use dual heading and IMU roll when both connected
     if (useDual)
     {
         // We have a IMU so apply the dual/IMU roll/heading error to the IMU data.
-        if (useCMPS || useBNO08x)
+//        if (useCMPS || useBNO08x)
+//        {
+//            float dualTemp;   //To convert IMU data (x10) to a float for the PAOGI so we have the decamal point
+//                     
+//            // the IMU heading raw
+////            dualTemp = yaw * 0.1;
+////            dtostrf(dualTemp, 3, 1, imuHeading);          
+//
+//            // the IMU heading fused to the dual heading
+//            fuseIMU();
+//            dtostrf(imuCorrected, 3, 1, imuHeading);
+//          
+//            // the pitch
+//            dualTemp = (int16_t)pitch * 0.1;
+//            dtostrf(dualTemp, 3, 1, imuPitch);
+//
+//            // the roll
+//            dualTemp = (int16_t)roll * 0.1;
+//            //If dual heading correction is 90deg (antennas left/right) correct the IMU roll
+//            if(headingcorr == 900)
+//            {
+//              dualTemp += rollDeltaSmooth;
+//            }
+//            dtostrf(dualTemp, 3, 1, imuRoll);
+//
+//        }
+//        else  //No IMU so put dual Heading & Roll in direct.
         {
-            float dualTemp;   //To convert IMU data (x10) to a float for the PAOGI so we have the decamal point
-                     
-            // the IMU heading raw
-//            dualTemp = yaw * 0.1;
-//            dtostrf(dualTemp, 3, 1, imuHeading);          
-
-            // the IMU heading fused to the dual heading
-            fuseIMU();
-            dtostrf(imuCorrected, 3, 1, imuHeading);
-          
-            // the pitch
-            dualTemp = (int16_t)pitch * 0.1;
-            dtostrf(dualTemp, 3, 1, imuPitch);
-
             // the roll
-            dualTemp = (int16_t)roll * 0.1;
-            //If dual heading correction is 90deg (antennas left/right) correct the IMU roll
-            if(headingcorr == 900)
-            {
-              dualTemp += rollDeltaSmooth;
-            }
-            dtostrf(dualTemp, 3, 1, imuRoll);
+            dtostrf(rollDual, 4, 2, imuRoll);
 
-        }
-        else  //No IMU so put dual Heading & Roll in direct.
-        {
-            // the roll
-            dtostrf(rollDual, 3, 1, imuRoll);
-            
             // the Dual heading raw
-            dtostrf(heading, 3, 1, imuHeading);
-            
+            dtostrf(heading, 4, 2, imuHeading);
         }
     }
 }

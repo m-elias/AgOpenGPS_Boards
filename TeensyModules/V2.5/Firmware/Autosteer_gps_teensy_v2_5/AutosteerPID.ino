@@ -45,7 +45,7 @@ void calcSteeringPID(void)
         // (11.08/12)*255=235.45
         // (0.185/12)*255=3.93
         // output now lies in the range [67 ... 205], the center position is now 136
-        //pwmDrive = (map(pwmDrive, 4, 235, 0, 255));
+        pwmDrive = (map(pwmDrive, 4, 235, 0, 255));
     }
 }
 
