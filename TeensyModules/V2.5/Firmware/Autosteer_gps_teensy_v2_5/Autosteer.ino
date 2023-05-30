@@ -206,6 +206,7 @@ void autosteerSetup()
   pinMode(PRESSURE_SENSOR_PIN, INPUT_DISABLE);
 
   //set up communication
+  Wire1.end();
   Wire1.begin();
     
   // Check ADC 
