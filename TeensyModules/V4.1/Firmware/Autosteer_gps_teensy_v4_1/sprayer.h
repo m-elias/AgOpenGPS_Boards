@@ -45,7 +45,7 @@ struct Pressure {
 
 //ether.sendUdp(helloFromMachine, sizeof(helloFromMachine), portMy, ipDestination, portDestination);  // from machine udp 5.6 scanpanda
 
-void SendAutoSteerUDP(uint8_t *data, uint8_t datalen, IPAddress dip, uint16_t dport)
+void SendUdp(uint8_t *data, uint8_t datalen, IPAddress dip, uint16_t dport)
 {
   Eth_udpAutoSteer.beginPacket(dip, dport);
   Eth_udpAutoSteer.write(data, datalen);
@@ -94,7 +94,7 @@ void readPressureSensors(){
     CK_A = (CK_A + PGN_234[i]);
   PGN_234[PGN_234_Size] = CK_A;
 
-  SendAutoSteerUDP(PGN_234, sizeof(PGN_234), ipDestination, portDestination);
+  SendUdp(PGN_234, sizeof(PGN_234), Eth_ipDestination, portDestination);
 
   /*if (debug){
     Serial << " <ON> ";
@@ -115,7 +115,7 @@ void readPressureSensors(){
     CK_A = (CK_A + PGN_51[i]);
   PGN_51[PGN_51_Size] = CK_A;
   
-  SendAutoSteerUDP(PGN_51, sizeof(PGN_51), ipDestination, portDestination);
+  SendUdp(PGN_51, sizeof(PGN_51), Eth_ipDestination, portDestination);
 
 }
 

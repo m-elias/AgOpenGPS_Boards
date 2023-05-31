@@ -231,14 +231,14 @@ void autosteerSetup()
     EEPROM.put(10, steerSettings);
     EEPROM.put(40, steerConfig);
     EEPROM.put(60, networkAddress);    
-    EEPROM.put(60, pressSensor);
+    EEPROM.put(80, pressSensor);
   }
   else
   {
     EEPROM.get(10, steerSettings);     // read the Settings
     EEPROM.get(40, steerConfig);
     EEPROM.get(60, networkAddress); 
-    EEPROM.get(60, pressSensor);
+    EEPROM.get(80, pressSensor);
   }
 
   steerSettingsInit();
@@ -711,11 +711,6 @@ void ReceiveUdp()
                 helloFromAutoSteer[7] = (uint8_t)helloSteerPosition;
                 helloFromAutoSteer[8] = helloSteerPosition >> 8;
                 helloFromAutoSteer[9] = switchByte;
-        pressSensor.zeroOffset = autoSteerUdpData[9];
-        pressSensor.calFactor = float(autoSteerUdpData[10]) / 10.0;
-        pressSensor.hiTriggerLevel = autoSteerUdpData[11];
-        pressSensor.loTriggerLevel = autoSteerUdpData[12];
-        EEPROM.put(60, pressSensor);
 
                 SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
                 }
@@ -724,8 +719,6 @@ void ReceiveUdp()
                  SendUdp(helloFromIMU, sizeof(helloFromIMU), Eth_ipDestination, portDestination); 
                 }
             }
-        Serial << "user1: " << pressSensor.zeroOffset << " user2: " << pressSensor.calFactor << " user3: " << pressSensor.hiTriggerLevel << " user4: " << pressSensor.loTriggerLevel;
-
             else if (autoSteerUdpData[3] == 201)
             {
              //make really sure this is the subnet pgn
@@ -769,11 +762,23 @@ void ReceiveUdp()
                     SendUdp(scanReply, sizeof(scanReply), ipDest, portDest);
                 }
             }
+            else if (autoSteerUdpData[3] == 238)  // machine config 0xEE
+            {
+                Serial.println("0xEE - Machine Config");
+        
+                pressSensor.zeroOffset = autoSteerUdpData[9];
+                pressSensor.calFactor = float(autoSteerUdpData[10]) / 10.0;
+                pressSensor.hiTriggerLevel = autoSteerUdpData[11];
+                pressSensor.loTriggerLevel = autoSteerUdpData[12];
+                EEPROM.put(80, pressSensor);
+        
+                Serial << "user1: " << pressSensor.zeroOffset << " user2: " << pressSensor.calFactor << " user3: " << pressSensor.hiTriggerLevel << " user4: " << pressSensor.loTriggerLevel;
+            }
         } //end if 80 81 7F
     }
 }
 #endif
-
+/*
 #ifdef ARDUINO_TEENSY41
 void SendUdp(uint8_t *data, uint8_t datalen, IPAddress dip, uint16_t dport)
 {
@@ -782,7 +787,7 @@ void SendUdp(uint8_t *data, uint8_t datalen, IPAddress dip, uint16_t dport)
   Eth_udpAutoSteer.endPacket();
 }
 #endif
-
+*/
 //ISR Steering Wheel Encoder
 void EncoderFunc()
 {
