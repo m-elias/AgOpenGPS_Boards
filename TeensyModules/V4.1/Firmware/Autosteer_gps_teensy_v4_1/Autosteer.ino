@@ -231,12 +231,14 @@ void autosteerSetup()
     EEPROM.put(10, steerSettings);
     EEPROM.put(40, steerConfig);
     EEPROM.put(60, networkAddress);    
+    EEPROM.put(60, pressSensor);
   }
   else
   {
     EEPROM.get(10, steerSettings);     // read the Settings
     EEPROM.get(40, steerConfig);
     EEPROM.get(60, networkAddress); 
+    EEPROM.get(60, pressSensor);
   }
 
   steerSettingsInit();
@@ -709,6 +711,11 @@ void ReceiveUdp()
                 helloFromAutoSteer[7] = (uint8_t)helloSteerPosition;
                 helloFromAutoSteer[8] = helloSteerPosition >> 8;
                 helloFromAutoSteer[9] = switchByte;
+        pressSensor.zeroOffset = autoSteerUdpData[9];
+        pressSensor.calFactor = float(autoSteerUdpData[10]) / 10.0;
+        pressSensor.hiTriggerLevel = autoSteerUdpData[11];
+        pressSensor.loTriggerLevel = autoSteerUdpData[12];
+        EEPROM.put(60, pressSensor);
 
                 SendUdp(helloFromAutoSteer, sizeof(helloFromAutoSteer), Eth_ipDestination, portDestination);
                 }
@@ -717,6 +724,7 @@ void ReceiveUdp()
                  SendUdp(helloFromIMU, sizeof(helloFromIMU), Eth_ipDestination, portDestination); 
                 }
             }
+        Serial << "user1: " << pressSensor.zeroOffset << " user2: " << pressSensor.calFactor << " user3: " << pressSensor.hiTriggerLevel << " user4: " << pressSensor.loTriggerLevel;
 
             else if (autoSteerUdpData[3] == 201)
             {

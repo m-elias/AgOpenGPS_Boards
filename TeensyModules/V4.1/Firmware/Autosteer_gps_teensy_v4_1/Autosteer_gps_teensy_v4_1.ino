@@ -216,6 +216,9 @@ struct ubxPacket
 	////sfe_ublox_packet_validity_e valid;			 //Goes from NOT_DEFINED to VALID or NOT_VALID when checksum is checked
 	////sfe_ublox_packet_validity_e classAndIDmatch; // Goes from NOT_DEFINED to VALID or NOT_VALID when the Class and ID match the requestedClass and requestedID
 };
+/************************* Matt's Sprayer code *******************/
+#include <Streaming.h>
+#include "sprayer.h"
 
 // Setup procedure ------------------------
 void setup()
@@ -248,7 +251,7 @@ void setup()
   SerialGPS->addMemoryForWrite(GPStxbuffer, serial_buffer_size);
 
   delay(10);
-  SerialRTK.begin(baudRTK);
+  //SerialRTK.begin(baudRTK);
   SerialRTK.addMemoryForRead(RTKrxbuffer, serial_buffer_size);
 
   delay(10);
@@ -673,6 +676,9 @@ void loop()
     digitalWrite(Power_on_LED, 0);
     digitalWrite(Ethernet_Active_LED, 1);
   }
+
+  pressureSensorLoop();
+  
 }//End Loop
 //**************************************************************************
 
