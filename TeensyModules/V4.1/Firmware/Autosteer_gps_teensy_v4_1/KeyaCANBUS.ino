@@ -133,18 +133,16 @@ void SteerKeya(int steerSpeed) {
 void KeyaBus_Receive() {
 	CAN_message_t KeyaBusReceiveData;
 	if (Keya_Bus.read(KeyaBusReceiveData)) {
-    //printlnHex(KeyaBusReceiveData.id);
-    Serial.print(KeyaBusReceiveData.id,HEX); Serial.print(" <> ");
+    /*Serial.print(KeyaBusReceiveData.id,HEX); Serial.print(" <> ");
     for (byte i = 0; i<6; i++){
       if (KeyaBusReceiveData.buf[i] < 16) Serial.print("0");
       Serial.print(KeyaBusReceiveData.buf[i],HEX); Serial.print(":");
     }
-    Serial.println(KeyaBusReceiveData.buf[7],HEX);
+    Serial.println(KeyaBusReceiveData.buf[7],HEX);*/
 		// parse the different message types
 		// heartbeat 0x07000001
 		if (KeyaBusReceiveData.id == 0x07000001) {
-      if (KeyaCurrentSensorReading < 0) Serial.println("Keya HB first detected");
-      Serial.print("HB ");
+      if (KeyaCurrentSensorReading < 0) Serial.println("Keya heartbeat detected, using Keya reported motor current for disengage");
 			// 0-1 - Cumulative value of angle (360 def / circle)
 			// 2-3 - Motor speed, signed int eg -500 or 500
 			// 4-5 - Motor current, with "symbol" ? Signed I think that means, but it does appear to be a crap int. 1, 2 for 1, 2 amps etc
@@ -159,7 +157,7 @@ void KeyaBus_Receive() {
 			else {
 				KeyaCurrentSensorReading = KeyaBusReceiveData.buf[5] * 20;
 			}
-      Serial.print(KeyaBusReceiveData.buf[4]); Serial.print(" "); Serial.print(KeyaBusReceiveData.buf[5]); Serial.print(" = "); Serial.println(KeyaCurrentSensorReading);
+      //Serial.print("HB "); Serial.print(KeyaBusReceiveData.buf[4]); Serial.print(" "); Serial.print(KeyaBusReceiveData.buf[5]); Serial.print(" = "); Serial.println(KeyaCurrentSensorReading);
 			//if (debugKeya) Serial.println("Heartbeat current is " + String(KeyaCurrentSensorReading));
 		}
     
@@ -181,8 +179,4 @@ void KeyaBus_Receive() {
 		//	}
 		//}
 	}
-}
-
-void keyaMotorTempQuery(){
-  
 }
