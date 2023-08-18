@@ -58,11 +58,14 @@ void motorDrive(void)
   // Dir + PWM Signal
 
   // Keya can bus output
+  SteerKeya(pwmDrive);  // use this for in tractor
+
   // steerAngleSetPoint is used for demoing on the bench instead of steerAngleError
-  int angleSetPointMapped = map(steerAngleSetPoint, -40, 40, -255, 255);  // map steerAngleSetPoint to -255/+255 to match pwmDrive's range
+  // comment above SteerKeya(pwmDrive) line and uncomment below if desired
+  /*int angleSetPointMapped = map(steerAngleSetPoint, -40, 40, -255, 255);  // map steerAngleSetPoint to -255/+255 to match pwmDrive's range
   if (pwmDrive == 0) SteerKeya(pwmDrive);
   else SteerKeya(angleSetPointMapped); // used for bench demoing
-  //SteerKeya(pwmDrive);  // use this for in tractor
+  */
   
   if (steerConfig.CytronDriver)
   {
