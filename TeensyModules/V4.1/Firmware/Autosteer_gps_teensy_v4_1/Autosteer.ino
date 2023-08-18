@@ -350,10 +350,17 @@ void autosteerLoop()
     // Current sensor?
     if (steerConfig.CurrentSensor)
     {
-      sensorSample = (float)analogRead(CURRENT_SENSOR_PIN);
-      sensorSample = (abs(775 - sensorSample)) * 0.5;
-      sensorReading = sensorReading * 0.7 + sensorSample * 0.3;    
-      sensorReading = min(sensorReading, 255);
+      if (KeyaCurrentSensorReading > -1)  // means Keya was detected by canbus heartbeat
+      {
+        sensorReading = KeyaCurrentSensorReading; // use Keya's reported motor current for disengage
+      }
+      else  // otherwise continue using analog input on PCB
+      {
+        sensorSample = (float)analogRead(CURRENT_SENSOR_PIN);
+        sensorSample = (abs(775 - sensorSample)) * 0.5;
+        sensorReading = sensorReading * 0.7 + sensorSample * 0.3;    
+        sensorReading = min(sensorReading, 255);
+      }
 
       if (sensorReading >= steerConfig.PulseCountMax)
       {
