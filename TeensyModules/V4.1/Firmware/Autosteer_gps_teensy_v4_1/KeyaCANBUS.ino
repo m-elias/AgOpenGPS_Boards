@@ -22,15 +22,16 @@ uint64_t KeyaPGN = 0x06000001;
 
 const bool debugKeya = false;
 
-void keyaSend(uint8_t data[]) {
+// function not used anywhere
+/*void keyaSend(uint8_t data[]) {
 	//TODO Use this optimisation function once we're happy things are moving the right way
 	CAN_message_t KeyaBusSendData;
 	KeyaBusSendData.id = KeyaPGN;
 	KeyaBusSendData.flags.extended = true;
 	KeyaBusSendData.len = 8;
-	memcpy(KeyaBusSendData.buf, data, sizeof(data));
+	memcpy(KeyaBusSendData.buf, data, sizeof(data)); // using 'sizeof(data)' instead of '8' throws a compiler warning, data is only 8 bytes long
 	Keya_Bus.write(KeyaBusSendData);
-}
+}*/
 
 void CAN_Setup() {
 	Keya_Bus.begin();
@@ -94,7 +95,7 @@ void enableKeyaSteer() {
 }
 
 void SteerKeya(int steerSpeed) {
-	int actualSpeed = map(steerSpeed, -255, 255, -995, 998);  // was -995
+	int actualSpeed = map(steerSpeed, -255, 255, -995, 995);
 	if (steerSpeed == 0) {
 		disableKeyaSteer();
 		if (debugKeya) Serial.println("steerSpeed zero - disabling");
