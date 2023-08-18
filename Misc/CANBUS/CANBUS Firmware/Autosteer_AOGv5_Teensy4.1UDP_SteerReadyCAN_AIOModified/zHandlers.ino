@@ -69,11 +69,25 @@ void GGA_Handler() //Rec'd GGA
     // time of last DGPS update
     parser.getArg(12, ageDGPS);
 
-    if (useBNO08x || useCMPS)
+    if (useDual)
     {
-       imuHandler();          //Get IMU data ready
-       BuildNmea();           //Build & send data GPS data to AgIO (Both Dual & Single)
+        if (dualReadyRelPos)
+        {
+            BuildNmea();
+            dualReadyRelPos = false;
+        }
+        else
+        {
+            dualReadyGGA = true;
+        }
     }
+
+    else if (useBNO08x || useCMPS)
+    {
+        imuHandler();          //Get IMU data ready
+        BuildNmea();           //Build & send data GPS data to AgIO (Both Dual & Single)
+    }
+
     else
     {
         itoa(0, imuYawRate, 10);
@@ -147,7 +161,13 @@ void BuildNmea(void)
 {
     strcpy(nmea, "");
 
-    strcat(nmea, "$PANDA,");
+    if (useDual)
+    {
+        strcat(nmea, "$PAOGI,");
+        dtostrf(rollDual, 4, 2, imuRoll);
+        dtostrf(heading, 4, 2, imuHeading);
+    }
+    else strcat(nmea, "$PANDA,");
 
     strcat(nmea, fixTime);
     strcat(nmea, ",");
