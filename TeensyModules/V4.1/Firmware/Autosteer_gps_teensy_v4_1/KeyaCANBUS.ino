@@ -35,7 +35,8 @@ const bool debugKeya = false;
 
 void CAN_Setup() {
 	Keya_Bus.begin();
-	Keya_Bus.setBaudRate(250000);
+	Keya_Bus.setBaudRate(250000); // for official Keya motor
+  //Keya_Bus.setBaudRate(500000);  // for identical motor from JinanLanJiu store https://www.aliexpress.com/item/1005005364248561.html
 	// Dedicated bus, zero chat from others. No need for filters
 //	CAN_message_t msgV;
 //	msgV.id = KeyaPGN;
@@ -53,7 +54,7 @@ void CAN_Setup() {
 //	msgV.buf[7] = 0x20;
 //	Keya_Bus.write(msgV);
 	delay(1000);
-	if (debugKeya) Serial.println("Initialised Keya CANBUS");
+	Serial.print("Initialised Keya CANBUS @ "); Serial.print(Keya_Bus.getBaudRate()); Serial.println("bps");
 }
 
 bool isPatternMatch(const CAN_message_t& message, const uint8_t* pattern, size_t patternSize) {
