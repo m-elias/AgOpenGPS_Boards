@@ -40,6 +40,10 @@
 #define WORKSW_PIN 34
 #define REMOTE_PIN 37
 
+#define WORK_ANALOG_PIN A13
+uint8_t workAnalogHyst = 15;
+uint16_t workAnalogThresh = 550;  // "WORK input" threshold for analog feedhouse height for 575R
+
 //Define sensor pin for current or pressure sensor
 #define CURRENT_SENSOR_PIN A17
 #define PRESSURE_SENSOR_PIN A10
@@ -260,6 +264,10 @@ void autosteerSetup()
   adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
   adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
 
+  pinMode(WORK_ANALOG_PIN, INPUT_PULLUP);
+  analogRead(WORK_ANALOG_PIN);
+  Serial.print("WORKSW_ANALOG pin "); Serial.print(WORK_ANALOG_PIN); Serial.print(" > "); Serial.println(analogRead(WORK_ANALOG_PIN));
+
 }// End of Setup
 
 void autosteerLoop()
@@ -283,7 +291,10 @@ void autosteerLoop()
     if (watchdogTimer++ > 250) watchdogTimer = WATCHDOG_FORCE_VALUE;
 
     //read all the switches
-    workSwitch = digitalRead(WORKSW_PIN);  // read work switch
+    analogRead(WORK_ANALOG_PIN); // discard first reading
+    int aRead = analogRead(WORK_ANALOG_PIN);
+    if (aRead > workAnalogThresh + workAnalogHyst) workSwitch = 1;
+    else if (aRead < workAnalogThresh - workAnalogHyst) workSwitch = 0;
 
     if (steerConfig.SteerSwitch == 1)         //steer switch on - off
     {
@@ -383,6 +394,9 @@ void autosteerLoop()
     }
 
     remoteSwitch = digitalRead(REMOTE_PIN); //read auto steer enable switch open = 0n closed = Off
+    if (!remoteSwitch) {
+      SCB_AIRCR = 0x05FA0004;   // Teensy Reboot
+    }
     switchByte = 0;
     switchByte |= (remoteSwitch << 2); //put remote in bit 2
     switchByte |= (steerSwitch << 1);   //put steerswitch status in bit 1 position
@@ -780,6 +794,19 @@ void ReceiveUdp()
                     SendUdp(scanReply, sizeof(scanReply), ipDest, portDest);
                 }
             }
+            else if (autoSteerUdpData[3] == 238)  // machine config 0xEE
+            {
+                Serial.println("0xEE - Machine Config");
+        
+                workAnalogThresh = autoSteerUdpData[9] * 4;
+                workAnalogHyst = autoSteerUdpData[10];
+                //pressSensor.hiTriggerLevel = autoSteerUdpData[11];
+                //pressSensor.loTriggerLevel = autoSteerUdpData[12];
+                //EEPROM.put(80, pressSensor);
+        
+                Serial << "user1: " << workAnalogThresh << " user2: " << workAnalogHyst << " user3: " << autoSteerUdpData[11] << " user4: " << autoSteerUdpData[12] << "\r\n";
+            }
+
         } //end if 80 81 7F
     }
 }

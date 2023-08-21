@@ -25,6 +25,13 @@
 // CFG-UART2-BAUDRATE 460800
 // Serial 2 In RTCM
 
+/*
+  * Modified for:
+  *  Lexion 575R
+  *    Analog input for feederhouse height WORK_SW trigger using factory height sensor
+  *      Set workAnalogThresh, WORK_ANALOG_PIN & workAnalogHyst according to application
+*/
+
 /************************* User Settings *************************/
 // Serial Ports
 #define SerialAOG Serial                //AgIO USB conection
@@ -126,6 +133,7 @@ byte velocityPWM_Pin = 36;      // Velocity (MPH speed) PWM pin
 #include "zNMEAParser.h"
 #include <Wire.h>
 #include "BNO08x_AOG.h"
+#include <Streaming.h>
 #include <FlexCAN_T4.h>
 // CRX1/CTX1 on Teensy are CAN3 on board
 // CRX2/CTX2 on Teensy are CAN2 on board
@@ -348,6 +356,14 @@ void setup()
 
   Serial.println("Right... time for some CANBUS! And, we're dedicated to Keya here");
   CAN_Setup();
+
+  String sketchNameString = __BASE_FILE__;
+  sketchNameString.remove(0, sketchNameString.lastIndexOf('\\')+1); // trim off beginning file path, from beginning of String to last back slash
+  //sketchNameString.remove(sketchNameString.lastIndexOf('ino')-3, sketchNameString.length()); // trim off ending '.ino.cpp'
+  sketchNameString.remove(sketchNameString.length() - 8);
+  Serial.print("\r\n");
+  Serial.println(sketchNameString);
+  delay(500);
 
   Serial.println("\r\nEnd setup, waiting for GPS...\r\n");
 }
