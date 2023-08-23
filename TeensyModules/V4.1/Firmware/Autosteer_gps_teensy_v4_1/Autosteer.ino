@@ -40,9 +40,12 @@
 #define WORKSW_PIN 34
 #define REMOTE_PIN 37
 
-#define WORK_ANALOG_PIN A13
-uint8_t workAnalogHyst = 15;
-uint16_t workAnalogThresh = 550;  // "WORK input" threshold for analog feedhouse height for 575R
+//Variables for settings
+struct AnalogTrigger {
+  uint8_t pin = A13;             // input pin
+  uint8_t thresh = 128;       // "WORK input" threshold for analog feedhouse height for 575R
+  uint8_t hyst = 5;           // hysterysis 
+};  AnalogTrigger analogWork; // 3 bytes
 
 //Define sensor pin for current or pressure sensor
 #define CURRENT_SENSOR_PIN A17
@@ -235,12 +238,14 @@ void autosteerSetup()
     EEPROM.put(10, steerSettings);
     EEPROM.put(40, steerConfig);
     EEPROM.put(60, networkAddress);    
+    EEPROM.put(70, analogWork);
   }
   else
   {
     EEPROM.get(10, steerSettings);     // read the Settings
     EEPROM.get(40, steerConfig);
-    EEPROM.get(60, networkAddress); 
+    EEPROM.get(60, networkAddress);
+    EEPROM.get(70, analogWork);
   }
 
   steerSettingsInit();
@@ -264,9 +269,9 @@ void autosteerSetup()
   adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
   adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
 
-  pinMode(WORK_ANALOG_PIN, INPUT_PULLUP);
-  analogRead(WORK_ANALOG_PIN);
-  Serial.print("WORKSW_ANALOG pin "); Serial.print(WORK_ANALOG_PIN); Serial.print(" > "); Serial.println(analogRead(WORK_ANALOG_PIN));
+  pinMode(analogWork.pin, INPUT_PULLUP);
+  analogRead(analogWork.pin);
+  Serial.print("analog Work pin "); Serial.print(analogWork.pin); Serial.print(" = "); Serial.println(analogRead(analogWork.pin));
 
 }// End of Setup
 
@@ -291,10 +296,23 @@ void autosteerLoop()
     if (watchdogTimer++ > 250) watchdogTimer = WATCHDOG_FORCE_VALUE;
 
     //read all the switches
-    analogRead(WORK_ANALOG_PIN); // discard first reading
-    int aRead = analogRead(WORK_ANALOG_PIN);
-    if (aRead > workAnalogThresh + workAnalogHyst) workSwitch = 1;
-    else if (aRead < workAnalogThresh - workAnalogHyst) workSwitch = 0;
+    analogRead(analogWork.pin); // discard first reading
+    int aRead = analogRead(analogWork.pin) / 4;   // divided by 4 to compare to byte
+    if (aRead > analogWork.thresh + analogWork.hyst)
+    {
+      if (workSwitch == 0){
+        Serial.print("analog Work "); Serial.print(aRead); Serial.println(" ON -> OFF");
+      }
+      workSwitch = 1;
+    }
+    else if (aRead < analogWork.thresh - analogWork.hyst)
+    {
+      if (workSwitch == 1){
+        Serial.print("analog Work "); Serial.print(aRead); Serial.println(" OFF -> ON");
+      }
+      workSwitch = 0;
+    }
+    //Serial.println(aRead);
 
     if (steerConfig.SteerSwitch == 1)         //steer switch on - off
     {
@@ -311,6 +329,7 @@ void autosteerLoop()
         steerSwitch = reading;
       }
       previous = reading;
+      // end new code
     }
     else if (steerConfig.SteerButton == 1)    //steer Button momentary
     {
@@ -797,14 +816,14 @@ void ReceiveUdp()
             else if (autoSteerUdpData[3] == 238)  // machine config 0xEE
             {
                 Serial.println("0xEE - Machine Config");
-        
-                workAnalogThresh = autoSteerUdpData[9] * 4;
-                workAnalogHyst = autoSteerUdpData[10];
+
+                analogWork.thresh = autoSteerUdpData[9];
+                analogWork.hyst = autoSteerUdpData[10];
                 //pressSensor.hiTriggerLevel = autoSteerUdpData[11];
                 //pressSensor.loTriggerLevel = autoSteerUdpData[12];
-                //EEPROM.put(80, pressSensor);
+                EEPROM.put(70, analogWork);
         
-                Serial << "user1: " << workAnalogThresh << " user2: " << workAnalogHyst << " user3: " << autoSteerUdpData[11] << " user4: " << autoSteerUdpData[12] << "\r\n";
+                Serial << "user1: " << analogWork.thresh << " user2: " << analogWork.hyst << " user3: " << autoSteerUdpData[11] << " user4: " << autoSteerUdpData[12] << "\r\n";
             }
 
         } //end if 80 81 7F
