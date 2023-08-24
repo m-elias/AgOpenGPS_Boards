@@ -376,7 +376,7 @@ void loop()
     {
         if (systick_millis_count - PortSwapTime >= 10000)
         {
-            Serial.println("Swapping GPS ports...\r\n");
+            //Serial.println("Swapping GPS ports...\r\n");
             SerialGPSTmp = SerialGPS;
             SerialGPS = SerialGPS2;
             SerialGPS2 = SerialGPSTmp;

@@ -40,13 +40,6 @@
 #define WORKSW_PIN 34
 #define REMOTE_PIN 37
 
-//Variables for settings
-struct AnalogTrigger {
-  uint8_t pin = A13;             // input pin
-  uint8_t thresh = 128;       // "WORK input" threshold for analog feedhouse height for 575R
-  uint8_t hyst = 5;           // hysterysis 
-};  AnalogTrigger analogWork; // 3 bytes
-
 //Define sensor pin for current or pressure sensor
 #define CURRENT_SENSOR_PIN A17
 #define PRESSURE_SENSOR_PIN A10
@@ -164,6 +157,8 @@ struct Setup {
   uint8_t IsUseY_Axis = 0;     //Set to 0 to use X Axis, 1 to use Y avis
 }; Setup steerConfig;               // 9 bytes
 
+#include "sections.h"
+
 void steerConfigInit()
 {
   if (steerConfig.CytronDriver) 
@@ -269,9 +264,7 @@ void autosteerSetup()
   adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
   adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
 
-  pinMode(analogWork.pin, INPUT_PULLUP);
-  analogRead(analogWork.pin);
-  Serial.print("analog Work pin "); Serial.print(analogWork.pin); Serial.print(" = "); Serial.println(analogRead(analogWork.pin));
+  sectionSetup();
 
 }// End of Setup
 
@@ -295,24 +288,11 @@ void autosteerLoop()
     //If connection lost to AgOpenGPS, the watchdog will count up and turn off steering
     if (watchdogTimer++ > 250) watchdogTimer = WATCHDOG_FORCE_VALUE;
 
+    //read section inputs
+    readSectionInputs();
+    
     //read all the switches
-    analogRead(analogWork.pin); // discard first reading
-    int aRead = analogRead(analogWork.pin) / 4;   // divided by 4 to compare to byte
-    if (aRead > analogWork.thresh + analogWork.hyst)
-    {
-      if (workSwitch == 0){
-        Serial.print("analog Work "); Serial.print(aRead); Serial.println(" ON -> OFF");
-      }
-      workSwitch = 1;
-    }
-    else if (aRead < analogWork.thresh - analogWork.hyst)
-    {
-      if (workSwitch == 1){
-        Serial.print("analog Work "); Serial.print(aRead); Serial.println(" OFF -> ON");
-      }
-      workSwitch = 0;
-    }
-    //Serial.println(aRead);
+    workSwitch = digitalRead(WORKSW_PIN);  // read work switch
 
     if (steerConfig.SteerSwitch == 1)         //steer switch on - off
     {
