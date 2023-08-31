@@ -265,6 +265,7 @@ void autosteerSetup()
   adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
 
   sectionSetup();
+  pinMode(A12, INPUT_PULLUP);
 
 }// End of Setup
 
@@ -372,9 +373,10 @@ void autosteerLoop()
     // Current sensor?
     if (steerConfig.CurrentSensor)
     {
-      if (KeyaCurrentSensorReading > -1)  // means Keya was detected by canbus heartbeat
+      if (keyaDetected)  // means Keya HB was detected
       {
-        sensorReading = KeyaCurrentSensorReading; // use Keya's reported motor current for disengage
+        //keyaCommand(keyaCurrentQuery);
+        sensorReading = sensorReading * 0.7 + KeyaCurrentSensorReading * 0.3;
       }
       else  // otherwise continue using analog input on PCB
       {
@@ -586,6 +588,7 @@ void ReceiveUdp()
                 //Serial.println(steerAngleSetPoint);
 
                 //Serial.println(gpsSpeed);
+                //Serial.println(millis());
 
                 if ((bitRead(guidanceStatus, 0) == 0) || (gpsSpeed < 0.1) || (steerSwitch == 1))
                 {

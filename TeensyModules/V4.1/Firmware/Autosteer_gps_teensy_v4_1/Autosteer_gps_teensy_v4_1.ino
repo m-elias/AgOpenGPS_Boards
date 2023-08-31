@@ -139,7 +139,8 @@ byte velocityPWM_Pin = 36;      // Velocity (MPH speed) PWM pin
 // CRX2/CTX2 on Teensy are CAN2 on board
 // CRX3/CTX3 on Teensy are CAN1 on board
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_256> Keya_Bus;    // CAN3 works for CRX1/CTX1 on PCB v4.1
-int8_t KeyaCurrentSensorReading = -1; //-1 means no Keya detected, data from Keya motor returns >-1
+float KeyaCurrentSensorReading = -1; //-1 means no Keya detected, data from Keya motor returns >-1
+bool keyaDetected = false;
 
 //Used to set CPU speed
 extern "C" uint32_t set_arm_clock(uint32_t frequency); // required prototype
