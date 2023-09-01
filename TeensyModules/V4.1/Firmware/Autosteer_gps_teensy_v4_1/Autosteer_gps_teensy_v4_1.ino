@@ -137,6 +137,14 @@ byte velocityPWM_Pin = 36;      // Velocity (MPH speed) PWM pin
 #include "zNMEAParser.h"
 #include <Wire.h>
 #include "BNO08x_AOG.h"
+#include <Streaming.h>
+#include <FlexCAN_T4.h>
+// CRX1/CTX1 on Teensy are CAN3 on board
+// CRX2/CTX2 on Teensy are CAN2 on board
+// CRX3/CTX3 on Teensy are CAN1 on board
+FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_256> Keya_Bus;    // CAN3 works for CRX1/CTX1 on PCB v4.1
+float KeyaCurrentSensorReading = -1; //-1 means no Keya detected, data from Keya motor returns >-1
+bool keyaDetected = false;
 
 //Used to set CPU speed
 extern "C" uint32_t set_arm_clock(uint32_t frequency); // required prototype
@@ -354,24 +362,35 @@ void setup()
   Serial.print("useBNO08x = ");
   Serial.println(useBNO08x);
 
+  Serial.println("Right... time for some CANBUS! And, we're dedicated to Keya here");
+  CAN_Setup();
+
+  String sketchNameString = __BASE_FILE__;
+  sketchNameString.remove(0, sketchNameString.lastIndexOf('\\')+1); // trim off beginning file path, from beginning of String to last back slash
+  //sketchNameString.remove(sketchNameString.lastIndexOf('ino')-3, sketchNameString.length()); // trim off ending '.ino.cpp'
+  sketchNameString.remove(sketchNameString.length() - 8);
+  Serial.print("\r\n");
+  Serial.println(sketchNameString);
+  delay(500);
+
   Serial.println("\r\nEnd setup, waiting for GPS...\r\n");
+
   for (int c = 0; c < numSectionInputs; c++){
     pinMode(sectionInputs[c], INPUT_PULLUP);
   }
-
-
-
 }
 
 elapsedMillis rvcTimer;
 
 void loop()
 {
+    KeyaBus_Receive();
+
     if (GGA_Available == false && !passThroughGPS && !passThroughGPS2)
     {
         if (systick_millis_count - PortSwapTime >= 10000)
         {
-            Serial.println("Swapping GPS ports...\r\n");
+            //Serial.println("Swapping GPS ports...\r\n");
             SerialGPSTmp = SerialGPS;
             SerialGPS = SerialGPS2;
             SerialGPS2 = SerialGPSTmp;

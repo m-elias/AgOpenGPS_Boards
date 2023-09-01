@@ -315,7 +315,20 @@ void autosteerLoop()
 
     if (steerConfig.SteerSwitch == 1)         //steer switch on - off
     {
-      steerSwitch = digitalRead(STEERSW_PIN); //read auto steer enable switch open = 0n closed = Off
+      //steerSwitch = digitalRead(STEERSW_PIN); //read auto steer enable switch open = 0n closed = Off
+
+      // new code for steer "Switch" mode that keeps AutoSteer OFF after current/pressure kickout until switch is cycled
+      reading = digitalRead(STEERSW_PIN);
+      if (reading == HIGH)  // switching "OFF"
+      {
+        steerSwitch = reading;
+      }
+      else if (reading == LOW && previous == HIGH)
+      {
+        steerSwitch = reading;
+      }
+      previous = reading;
+      // end new code
     }
     else if (steerConfig.SteerButton == 1)    //steer Button momentary
     {
@@ -379,11 +392,18 @@ void autosteerLoop()
     // Current sensor?
     if (steerConfig.CurrentSensor)
     {
-      sensorSample = (float)analogRead(CURRENT_SENSOR_PIN);
-      sensorSample = (abs(775 - sensorSample)) * 0.5;
-      sensorReading = sensorReading * 0.7 + sensorSample * 0.3;    
-      sensorReading = min(sensorReading, 255);
-
+      if (keyaDetected)  // means Keya HB was detected
+      {
+        sensorReading = sensorReading * 0.7 + KeyaCurrentSensorReading * 0.3; // then use keya current data
+      }
+      else  // otherwise continue using analog input on PCB
+      {
+        sensorSample = (float)analogRead(CURRENT_SENSOR_PIN);
+        sensorSample = (abs(775 - sensorSample)) * 0.5;
+        sensorReading = sensorReading * 0.7 + sensorSample * 0.3;    
+        sensorReading = min(sensorReading, 255);
+      }
+      
       if (sensorReading >= steerConfig.PulseCountMax)
       {
           steerSwitch = 1; // reset values like it turned off

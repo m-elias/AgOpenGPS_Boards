@@ -56,6 +56,17 @@ void motorDrive(void)
   // Used with Cytron MD30C Driver
   // Steering Motor
   // Dir + PWM Signal
+
+  // Keya can bus output, always send pwmDrive to keya, SteerKeya function will deal with it
+  SteerKeya(pwmDrive);  // use this for in tractor
+
+  // steerAngleSetPoint is used for demoing on the bench instead of steerAngleError
+  // comment above SteerKeya(pwmDrive) line and uncomment below if desired
+  /*int angleSetPointMapped = map(steerAngleSetPoint, -40, 40, -255, 255);  // map steerAngleSetPoint to -255/+255 to match pwmDrive's range
+  if (pwmDrive == 0) SteerKeya(pwmDrive);
+  else SteerKeya(angleSetPointMapped); // used for bench demoing
+  */
+  
   if (steerConfig.CytronDriver)
   {
     // Cytron MD30C Driver Dir + PWM Signal
