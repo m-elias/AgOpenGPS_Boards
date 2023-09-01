@@ -375,8 +375,7 @@ void autosteerLoop()
     {
       if (keyaDetected)  // means Keya HB was detected
       {
-        //keyaCommand(keyaCurrentQuery);
-        sensorReading = sensorReading * 0.7 + KeyaCurrentSensorReading * 0.3;
+        sensorReading = sensorReading * 0.7 + KeyaCurrentSensorReading * 0.3; // then use keya current data
       }
       else  // otherwise continue using analog input on PCB
       {

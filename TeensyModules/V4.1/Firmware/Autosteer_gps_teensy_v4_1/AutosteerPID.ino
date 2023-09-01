@@ -57,7 +57,7 @@ void motorDrive(void)
   // Steering Motor
   // Dir + PWM Signal
 
-  // Keya can bus output
+  // Keya can bus output, always send pwmDrive to keya, SteerKeya function will deal with it
   SteerKeya(pwmDrive);  // use this for in tractor
 
   // steerAngleSetPoint is used for demoing on the bench instead of steerAngleError

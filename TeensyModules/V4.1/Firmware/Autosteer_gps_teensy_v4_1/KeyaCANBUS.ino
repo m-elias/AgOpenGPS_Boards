@@ -39,7 +39,7 @@ bool keyaMotorStatus = false;
 
 void CAN_Setup() {
   Keya_Bus.begin();
-  Keya_Bus.setBaudRate(250000); // for official Keya motor
+  Keya_Bus.setBaudRate(250000); // for official Keya/jnky motor
   //Keya_Bus.setBaudRate(500000);  // for identical motor from JinanLanJiu store https://www.aliexpress.com/item/1005005364248561.html
   delay(100);
   Serial.print("Initialised Keya CANBUS @ "); Serial.print(Keya_Bus.getBaudRate()); Serial.println("bps");
@@ -159,13 +159,16 @@ void KeyaBus_Receive() {
       Serial.print(KeyaBusReceiveData.buf[6]); Serial.print(":"); Serial.print(KeyaBusReceiveData.buf[7]); Serial.print(" ");// Serial.print(KeyaCurrentSensorReading);
       keyaMotorStatus = !bitRead(KeyaBusReceiveData.buf[7], 0);
       Serial.print("\r\nmotor status "); Serial.print(keyaMotorStatus);
-      
+
+      // check if there's any motor diag/error data and parse it
       if (KeyaBusReceiveData.buf[7] != 0){
+
+        // motor disabled bit
         if (bitRead(KeyaBusReceiveData.buf[7], 0)) {
           if (steerSwitch == 0 && keyaMotorStatus == 1) {
             Serial.print("\r\nMotor disabled");
             Serial.print(" - set AS off");
-            steerSwitch = 1; // reset values like it turned off
+            steerSwitch = 1; // turn off AS if motor's internal shutdown triggers
             currentState = 1;
             previous = 0;
           }
@@ -247,14 +250,14 @@ void KeyaBus_Receive() {
 
 			// Current query response (this is also in heartbeat)
 			else if (isPatternMatch(KeyaBusReceiveData, keyaCurrentResponse, sizeof(keyaCurrentResponse))) {
-  uint32_t time = millis();
-  Serial.print(time); Serial.print(" "); Serial.print(time - keyaTime); Serial.print(" ");
-  keyaTime = time;
+        uint32_t time = millis();
+        Serial.print(time); Serial.print(" "); Serial.print(time - keyaTime); Serial.print(" ");
+        keyaTime = time;
         printIdAndReply(KeyaBusReceiveData.id, KeyaBusReceiveData.buf);
         Serial.print(" current reply "); Serial.print(KeyaBusReceiveData.buf[4]);
         KeyaCurrentSensorReading = KeyaBusReceiveData.buf[4] * 2.5; // so that AoG's display shows "amps"
         keyaCurrentUpdateTimer -= 100;
-        Serial.print(" ave "); Serial.print(sensorReading/2.5);
+        Serial.print(" ave "); Serial.print(sensorReading/2.5); // to print ave in "amps"
 			}
 
       // Fault query response
