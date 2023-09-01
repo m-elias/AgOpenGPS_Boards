@@ -56,7 +56,11 @@
 
 //----------------------------------------------------------
 
-String inoVersion = ("\r\nAgOpenGPS Tony UDP CANBUS Ver 18.02.2023 (All In One PCB MOD)");
+#ifdef isAllInOneBoard
+    String inoVersion = ("\r\nAgOpenGPS CANBUS Ver 02.07.2023 (AIO v4.1 PCB))");
+#else
+    String inoVersion = ("\r\nAgOpenGPS CANBUS Ver 02.07.2023 (CommonRail PCB)");
+#endif
 
   ////////////////// User Settings /////////////////////////  
 
@@ -230,6 +234,16 @@ boolean intendToSteer = 0;        //Do We Intend to Steer?
   float roll = 0;
   float pitch = 0;
   float yaw = 0;
+
+  //Dual data
+  double baseline = 0;
+  double rollDual = 0;
+  double relPosD = 0;
+  double heading = 0;
+
+  bool useDual = false;
+  bool dualReadyGGA = false;
+  bool dualReadyRelPos = false;
 
   //Swap BNO08x roll & pitch? - Note this is now sent from AgOpen
 
@@ -542,8 +556,8 @@ boolean intendToSteer = 0;        //Do We Intend to Steer?
       Serial.println("\r\nGPS Mode:");
       if (gpsMode == 1) Serial.println("GPS Forwarding @ 115200 (Set Via Service Tool)");
       else if (gpsMode == 2) Serial.println("GPS Forwarding @ 460800 (Set Via Service Tool)");
-      else if (gpsMode == 3) Serial.println("Panda Mode @ 115200 (Set Via Service Tool)");
-      else if (gpsMode == 4) Serial.println("Panda Mode @ 460800 (Set Via Service Tool)");
+      else if (gpsMode == 3) Serial.println("Panda/Dual Mode @ 115200 (Set Via Service Tool)");
+      else if (gpsMode == 4) Serial.println("Panda/Dual Mode @ 460800 (Set Via Service Tool)");
       else Serial.println("No GPS mode selected - Set Via Service Tool");
 
       delay (3000);
