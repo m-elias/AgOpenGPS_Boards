@@ -135,9 +135,9 @@ byte velocityPWM_Pin = 36;      // Velocity (MPH speed) PWM pin
 #include "BNO08x_AOG.h"
 #include <Streaming.h>
 #include <FlexCAN_T4.h>
-// CRX1/CTX1 on Teensy are CAN3 on board
-// CRX2/CTX2 on Teensy are CAN2 on board
-// CRX3/CTX3 on Teensy are CAN1 on board
+// CAN3 is CRX1/CTX1 on Teensy pin-out
+// CAN2 is CRX2/CTX2 on Teensy pin-out
+// CAN1 is CRX3/CTX3 on Teensy pin-out
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_256> Keya_Bus;    // CAN3 works for CRX1/CTX1 on PCB v4.1
 float KeyaCurrentSensorReading = -1; //-1 means no Keya detected, data from Keya motor returns >-1
 bool keyaDetected = false;
