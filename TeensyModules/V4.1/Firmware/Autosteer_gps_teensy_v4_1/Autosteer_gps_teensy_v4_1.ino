@@ -29,7 +29,8 @@
   * Modified for:
   *  Lexion 575R
   *    Analog input for feederhouse height WORK_SW trigger using factory height sensor
-  *      Set workAnalogThresh, WORK_ANALOG_PIN & workAnalogHyst according to application
+  *      Set workAnalogThresh & workAnalogHyst via user machine parameters in AoG
+  *      Set WORK_ANALOG_PIN to correct analog input
 */
 
 /************************* User Settings *************************/
