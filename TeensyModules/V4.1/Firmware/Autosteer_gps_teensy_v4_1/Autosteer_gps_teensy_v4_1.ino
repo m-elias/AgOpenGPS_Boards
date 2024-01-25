@@ -2,10 +2,10 @@
 // If dual right antenna is for position (must enter this location in AgOpen), left Antenna is for heading & roll
 //
 // connection plan:
-// Teensy Serial 7 RX (28) to F9P Position receiver TX1 (Position data)
-// Teensy Serial 7 TX (29) to F9P Position receiver RX1 (RTCM data for RTK)
-// Teensy Serial 2 RX (7) to F9P Heading receiver TX1 (Relative position from left antenna to right antenna)
-// Teensy Serial 2 TX (8) to F9P Heading receiver RX1
+// Teensy Serial 5 RX (21) to F9P Position receiver TX1 (Position data)
+// Teensy Serial 5 TX (20) to F9P Position receiver RX1 (RTCM data for RTK)
+// Teensy Serial 8 RX (34) to F9P Heading receiver TX1 (Relative position from left antenna to right antenna)
+// Teensy Serial 8 TX (35) to F9P Heading receiver RX1
 // F9P Position receiver TX2 to F9P Heading receiver RX2 (RTCM data for Moving Base)
 //
 // Configuration of receiver
@@ -29,14 +29,14 @@
 // Serial Ports
 #define SerialAOG Serial                //AgIO USB conection
 #define SerialRTK Serial3               //RTK radio
-HardwareSerial* SerialGPS = &Serial7;   //Main postion receiver (GGA) (Serial2 must be used here with T4.0 / Basic Panda boards - Should auto swap)
-HardwareSerial* SerialGPS2 = &Serial2;  //Dual heading receiver 
+HardwareSerial* SerialGPS = &Serial5;   //Main postion receiver (GGA) (Serial2 must be used here with T4.0 / Basic Panda boards - Should auto swap)
+HardwareSerial* SerialGPS2 = &Serial8;  //Dual heading receiver 
 HardwareSerial* SerialGPSTmp = NULL;
 //HardwareSerial* SerialAOG = &Serial;
 
 const int32_t baudAOG = 115200;
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
+const int32_t baudRTK = 115200;     // most are using Xbee radios with default of 115200
 
 // Baudrates for detecting UBX receiver
 uint32_t baudrates[]
@@ -68,12 +68,12 @@ uint32_t READ_BNO_TIME = 0;   //Used stop BNO data pile up (This version is with
 
 //Status LED's
 #define GGAReceivedLED 13         //Teensy onboard LED
-#define Power_on_LED 5            //Red
+/*#define Power_on_LED 5            //Red
 #define Ethernet_Active_LED 6     //Green
 #define GPSRED_LED 9              //Red (Flashing = NO IMU or Dual, ON = GPS fix with IMU)
 #define GPSGREEN_LED 10           //Green (Flashing = Dual bad, ON = Dual good)
 #define AUTOSTEER_STANDBY_LED 11  //Red
-#define AUTOSTEER_ACTIVE_LED 12   //Green
+#define AUTOSTEER_ACTIVE_LED 12   //Green*/
 uint32_t gpsReadyTime = 0;        //Used for GGA timeout
 
 //for v2.2
