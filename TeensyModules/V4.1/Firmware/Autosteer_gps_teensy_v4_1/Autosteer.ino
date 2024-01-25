@@ -287,7 +287,17 @@ void autosteerLoop()
 
     if (steerConfig.SteerSwitch == 1)         //steer switch on - off
     {
-      steerSwitch = digitalRead(STEERSW_PIN); //read auto steer enable switch open = 0n closed = Off
+      // new code for steer "Switch" mode that keeps AutoSteer OFF after current/pressure kickout until switch is cycled
+      reading = digitalRead(STEERSW_PIN);  //read auto steer enable switch open = 0n closed = Off
+      if (reading == HIGH)  // switching "OFF"
+      {
+        steerSwitch = reading;
+      }
+      else if (reading == LOW && previous == HIGH)
+      {
+        steerSwitch = reading;
+      }
+      previous = reading;
     }
     else if (steerConfig.SteerButton == 1)    //steer Button momentary
     {
