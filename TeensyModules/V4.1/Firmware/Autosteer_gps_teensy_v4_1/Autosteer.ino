@@ -17,7 +17,7 @@
      122hz = 1
      3921hz = 2
 */
-#define PWM_Frequency 1
+#define PWM_Frequency 2
 
 /////////////////////////////////////////////
 
@@ -28,28 +28,27 @@
 //Connect ground only for cytron, Connect Ground and +5v for IBT2
 
 //Dir1 for Cytron Dir, Both L and R enable for IBT2
-#define DIR1_RL_ENABLE 4
+#define DIR1_RL_ENABLE 6
 
 //PWM1 for Cytron PWM, Left PWM for IBT2
-#define PWM1_LPWM 2
+#define PWM1_LPWM 9
 
 //Not Connected for Cytron, Right PWM for IBT2
-#define PWM2_RPWM 3
+#define PWM2_RPWM 4
 
 //--------------------------- Switch Input Pins ------------------------
-#define STEERSW_PIN 32
-#define WORKSW_PIN 34
-#define REMOTE_PIN 37
-#define IMP_SW 27
+#define STEERSW_PIN 2
+#define WORKSW_PIN 41   // analog capable pin but code is still for digital input only
+#define KICKOUT_PIN 3
+//#define IMP_SW 27
 
 //Define sensor pin for current or pressure sensor
-#define CURRENT_SENSOR_PIN A17
-#define PRESSURE_SENSOR_PIN A10
+#define CURRENT_SENSOR_PIN A13   //ADC1
+#define PRESSURE_SENSOR_PIN A12  //ADC1
 
 #define CONST_180_DIVIDED_BY_PI 57.2957795130823
 
-#define WAS_SENSOR_PIN A0  //ADC0
-//#define ANALOG_SENSOR_PIN A1    //ADC1
+#define WAS_SENSOR_PIN A15  //ADC1
 
 #include <Wire.h>
 #include <EEPROM.h>
@@ -106,7 +105,7 @@ uint8_t relay = 0, relayHi = 0, uTurn = 0;
 uint8_t tram = 0;
 
 //Switches
-uint8_t remoteSwitch = 0, workSwitch = 0, steerSwitch = 1, switchByte = 0;
+uint8_t kickoutSwitch = 0, workSwitch = 0, steerSwitch = 1, switchByte = 0;
 
 //On Off
 uint8_t guidanceStatus = 0;
@@ -200,38 +199,37 @@ void autosteerSetup() {
   //keep pulled high and drag low to activate, noise free safe
   pinMode(WORKSW_PIN, INPUT_PULLUP);
   pinMode(STEERSW_PIN, INPUT_PULLUP);
-  pinMode(REMOTE_PIN, INPUT_PULLUP);
+  pinMode(KICKOUT_PIN, INPUT_PULLUP);
   pinMode(DIR1_RL_ENABLE, OUTPUT);
-  pinMode(IMP_SW, OUTPUT);
+  //pinMode(IMP_SW, OUTPUT);
 
   // Disable digital inputs for analog input pins
   pinMode(CURRENT_SENSOR_PIN, INPUT_DISABLE);
   pinMode(PRESSURE_SENSOR_PIN, INPUT_DISABLE);
 
   //WAS A/D convertor setup
-  pinMode(WAS_SENSOR_PIN, INPUT_DISABLE);  //AO
-  //pinMode(ANALOG_SENSOR_PIN, INPUT_DISABLE); //A1
+  pinMode(WAS_SENSOR_PIN, INPUT_DISABLE);
 
-  adcWAS->adc0->setAveraging(16);                                     // set number of averages
-  adcWAS->adc0->setResolution(12);                                    // set bits of resolution
-  adcWAS->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED);  // change the conversion speed
-  adcWAS->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);      // change the sampling speed
+  adcWAS->adc1->setAveraging(16);                                     // set number of averages
+  adcWAS->adc1->setResolution(12);                                    // set bits of resolution
+  adcWAS->adc1->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED);  // change the conversion speed
+  adcWAS->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);      // change the sampling speed
 
 
   //set up communication
-  //Wire1.begin();
+  Wire1.begin();
 
   // Check ADC
-  //if(adc.testConnection())
-  //{
-  //  Serial.println("ADC Connecton OK");
-  //}
-  //else
-  //{
+  if(adc.testConnection())
+  {
+    Serial.println("ADC Connecton OK");
+  }
+  else
+  {
   Serial.println("ADC Connecton FAILED!");
   //Autosteer_running = false;
   Serial.println("bypassing, Autosteer_running = true");
-  //}
+  }
 
   //50Khz I2C
   //TWBR = 144;   //Is this needed?
@@ -259,8 +257,8 @@ void autosteerSetup() {
   if (Autosteer_running) {
     Serial.println("Autosteer running, waiting for AgOpenGPS");
     // Autosteer Led goes Red if ADS1115 is found
-    digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
-    digitalWrite(AUTOSTEER_STANDBY_LED, 1);
+    //digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
+    //digitalWrite(AUTOSTEER_STANDBY_LED, 1);
   } else {
     Autosteer_running = false;  //Turn off auto steer if no ethernet (Maybe running T4.0)
                                 //    if(!Ethernet_running)Serial.println("Ethernet not available");
@@ -376,9 +374,9 @@ void autosteerLoop() {
       }
     }
 
-    remoteSwitch = digitalRead(REMOTE_PIN);  //read auto steer enable switch open = 0n closed = Off
+    kickoutSwitch = digitalRead(KICKOUT_PIN);  //read auto steer enable switch open = 0n closed = Off
     switchByte = 0;
-    switchByte |= (remoteSwitch << 2);  //put remote in bit 2
+    switchByte |= (kickoutSwitch << 2);  //put kickout in bit 2
     switchByte |= (steerSwitch << 1);   //put steerswitch status in bit 1 position
     switchByte |= workSwitch;
 
@@ -448,8 +446,8 @@ void autosteerLoop() {
       motorDrive();       //out to motors the pwm value
       // Autosteer Led goes GREEN if autosteering
 
-      digitalWrite(AUTOSTEER_ACTIVE_LED, 1);
-      digitalWrite(AUTOSTEER_STANDBY_LED, 0);
+      //digitalWrite(AUTOSTEER_ACTIVE_LED, 1);
+      //digitalWrite(AUTOSTEER_STANDBY_LED, 0);
     } else {
       //we've lost the comm to AgOpenGPS, or just stop request
       //Disable H Bridge for IBT2, hyd aux, etc for cytron
@@ -464,16 +462,16 @@ void autosteerLoop() {
       pwmDrive = 0;  //turn off steering motor
       motorDrive();  //out to motors the pwm value
       pulseCount = 0;
-      //noTone(velocityPWM_Pin); // wrong spot for AoG timeout noTone, cause speed output to disable when not autosteering
+      //noTone(speedPulsePin); // wrong spot for AoG timeout noTone, cause speed output to disable when not autosteering
       // Autosteer Led goes back to RED when autosteering is stopped
-      digitalWrite(AUTOSTEER_STANDBY_LED, 1);
-      digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
-      digitalWrite(IMP_SW, 0);
+      //digitalWrite(AUTOSTEER_STANDBY_LED, 1);
+      //digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
+      //digitalWrite(IMP_SW, 0);
     }
-
+/*
     if (relay == 0 && relayHi == 0) digitalWrite(IMP_SW, 0);
     else digitalWrite(IMP_SW, 1);
-
+*/
 
     //Serial.print("\rAS loop time: "); Serial.println(micros() - autsteerStartTimeuS);
     //Serial.print("\rAS loop time: "); Serial.println(systick_millis_count - autsteerLastTime);
@@ -496,18 +494,18 @@ void autosteerLoop() {
 
       if (gpsSpeed > 0.3)  // 0.10 wasn't high enough
       {
-        tone(velocityPWM_Pin, uint16_t(speedPulse));
+        tone(speedPulsePin, uint16_t(speedPulse));
       } else {
-        noTone(velocityPWM_Pin);
+        noTone(speedPulsePin);
       }
     }
   } else  // if gpsSpeedUpdateTimer hasn't update for 1000 ms, turn off speed pulse
   {
-    noTone(velocityPWM_Pin);
+    noTone(speedPulsePin);
   }
 
   if (encEnable) {
-    thisEnc = digitalRead(REMOTE_PIN);
+    thisEnc = digitalRead(KICKOUT_PIN);
     if (thisEnc != lastEnc) {
       lastEnc = thisEnc;
       if (lastEnc) EncoderFunc();

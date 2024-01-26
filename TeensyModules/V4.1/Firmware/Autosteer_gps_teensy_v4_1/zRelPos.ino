@@ -15,7 +15,7 @@ void relPosDecode() {
     {
         dualRTKFail = true;
         rollDual *= 0.9;
-        digitalWrite(GPSGREEN_LED, blink);  //Flash the green GPS LED
+        //digitalWrite(GPSGREEN_LED, blink);  //Flash the green GPS LED
 
         //If the GGA is ready, the dual data is rubbish so best send the PAOGI with the last known dual heading rather than nothing
         if (dualReadyGGA == true) 
@@ -29,7 +29,7 @@ void relPosDecode() {
     else  //Dual data is good so run all the dual calculations
     {
         dualRTKFail = false;
-        digitalWrite(GPSGREEN_LED, HIGH);   //Turn green GPS LED ON
+        //digitalWrite(GPSGREEN_LED, HIGH);   //Turn green GPS LED ON
 
         heading = (int32_t)ackPacket[30] + ((int32_t)ackPacket[31] << 8)
             + ((int32_t)ackPacket[32] << 16) + ((int32_t)ackPacket[33] << 24);

@@ -28,11 +28,11 @@
 // CFG-UART2-BAUDRATE 460800
 // Serial 2 In RTCM
 
-String inoVersion = ("\r\nFirmware Version !! RVC & A0 TEST !!, 20.05.2023 - Pat Valtra\r\n");
+String inoVersion = ("\r\nFirmware Version !! RVC & A0 TEST !!, 2024.01.26 - Proton Test\r\n");
 
-#include "reset.h"
+//#include "reset.h"
 //Reset(uint8_t _btnIO, uint16_t _btnPressPeriod = 10000, uint8_t _ledIO = LED_BUILTIN)
-Reset teensyReset(A12, 2000);  //Used for Teensy reboot (short press) & reset to firmware default (10s long press, work in progress)
+//Reset teensyReset(A12, 2000);  //Used for Teensy reboot (short press) & reset to firmware default (10s long press, work in progress)
 
 /************************* User Settings *************************/
 // Serial Ports
@@ -40,7 +40,7 @@ Reset teensyReset(A12, 2000);  //Used for Teensy reboot (short press) & reset to
 #define SerialRTK Serial3               //RTK radio
 HardwareSerial* SerialGPS = &Serial5;   //Main postion receiver (GGA) (Serial2 must be used here with T4.0 / Basic Panda boards - Should auto swap)
 HardwareSerial* SerialGPS2 = &Serial8;  //Dual heading receiver 
-HardwareSerial* SerialIMU = &Serial5;   //IMU BNO-085
+HardwareSerial* SerialIMU = &Serial6;   //IMU BNO-085
 HardwareSerial* SerialGPSTmp = NULL;
 //HardwareSerial* SerialAOG = &Serial;
 
@@ -85,9 +85,7 @@ bool bnoTrigger = false;
 
 #include <ADC.h>
 #include <ADC_util.h>
-
-//16x oversampling medium speed 12 bit A/D object
-ADC* adcWAS = new ADC();
+ADC* adcWAS = new ADC();  //16x oversampling medium speed 12 bit A/D object
 
 //Status LED's
 #define GGAReceivedLED 13         //Teensy onboard LED
@@ -99,18 +97,6 @@ ADC* adcWAS = new ADC();
 #define AUTOSTEER_ACTIVE_LED 12   //Green*/
 uint32_t gpsReadyTime = 0;        //Used for GGA timeout
 
-//for v2.2
-// #define Power_on_LED 22
-// #define Ethernet_Active_LED 23
-// #define GPSRED_LED 20
-// #define GPSGREEN_LED 21
-// #define AUTOSTEER_STANDBY_LED 38
-// #define AUTOSTEER_ACTIVE_LED 39
-
-/*****************************************************************/
-
-// Ethernet Options (Teensy 4.1 Only)
-#ifdef ARDUINO_TEENSY41
 #include <NativeEthernet.h>
 #include <NativeEthernetUdp.h>
 
@@ -139,7 +125,6 @@ EthernetUDP Eth_udpNtrip;     //Port 2233
 EthernetUDP Eth_udpAutoSteer; //Port 8888
 
 IPAddress Eth_ipDestination;
-#endif // ARDUINO_TEENSY41
 
 byte CK_A = 0;
 byte CK_B = 0;
@@ -147,13 +132,13 @@ int relposnedByteCount = 0;
 
 //Speed pulse output
 elapsedMillis speedPulseUpdateTimer = 0;
-byte velocityPWM_Pin = 36;      // Velocity (MPH speed) PWM pin
+byte speedPulsePin = 18;      // Speedpulse (MPH speed) PWM pin
+byte speedPulseSlowPin = 19;
 
 #include "zNMEAParser.h"
 #include <Wire.h>
 #include "BNO08x_AOG.h"
 
-//Used to set CPU speed
 extern "C" uint32_t set_arm_clock(uint32_t frequency); // required prototype
 
 bool useDual = false;
@@ -167,9 +152,6 @@ bool dualReadyRelPos = false;
 bool useCMPS = false;
 bool useBNO08x = false;
 bool useBNO08xRVC = false;
-
-//CMPS always x60
-#define CMPS14_ADDRESS 0x60
 
 // BNO08x address variables to check where it is
 const uint8_t bno08xAddresses[] = { 0x4A, 0x4B };
@@ -251,18 +233,18 @@ struct ubxPacket
 void setup()
 {
     delay(500);                         //Small delay so serial can monitor start up
-    set_arm_clock(150000000);
-    delay(100);           //Set CPU speed to 150mhz
+    //set_arm_clock(150000000);
+    //delay(100);           //Set CPU speed to 150mhz
     Serial.print("CPU speed set to: ");
     Serial.println(F_CPU_ACTUAL);
 
   pinMode(GGAReceivedLED, OUTPUT);
-  pinMode(Power_on_LED, OUTPUT);
+  /*pinMode(Power_on_LED, OUTPUT);
   pinMode(Ethernet_Active_LED, OUTPUT);
   pinMode(GPSRED_LED, OUTPUT);
   pinMode(GPSGREEN_LED, OUTPUT);
   pinMode(AUTOSTEER_STANDBY_LED, OUTPUT);
-  pinMode(AUTOSTEER_ACTIVE_LED, OUTPUT);
+  pinMode(AUTOSTEER_ACTIVE_LED, OUTPUT);*/
 
   // the dash means wildcard
   parser.setErrorHandler(errorHandler);
@@ -294,7 +276,7 @@ void setup()
   EthernetStart();
 
   Serial.println("\r\nStarting IMU...");
-  bool reboot = false;    // for testing, used to reboot until no BNO is detected, can be removed 
+  //bool reboot = false;    // for testing, used to reboot until no BNO is detected, can be removed 
 
   //check for RVC/Serial BNO first
   pinMode(A4, INPUT); // set SDA to high impedance
@@ -352,7 +334,7 @@ void setup()
 
   Serial.println(inoVersion);
   Serial.println("\r\nwaiting for GPS...\r\n");
-
+/*
   if (useBNO08x && reboot){
     delay(100);
     SCB_AIRCR = 0x05FA0004; //Teensy Reset
@@ -361,12 +343,12 @@ void setup()
   if (useBNO08xRVC && reboot){
     delay(100);
     SCB_AIRCR = 0x05FA0004; //Teensy Reset
-  }
+  }*/
 }
 
 void loop()
 {
-    if (teensyReset.update()){  // true return means reset settings to defaults
+/*    if (teensyReset.update()){  // true return means reset settings to defaults
       // set to firmware defaults code goes here
 
       // set defaults
@@ -384,7 +366,7 @@ void loop()
       Serial.println("\r\n\n****** Factory/firmware defaults set ******");
       Serial.println("\r\n**************** Rebooting ****************");
       teensyReset.reboot(true);      
-    }
+    }*/
 
     if (GGA_Available == false && !passThroughGPS && !passThroughGPS2)
     {
@@ -696,7 +678,7 @@ void loop()
         if (calcChecksum())
         {
             //if(deBug) Serial.println("RelPos Message Recived");
-            digitalWrite(GPSRED_LED, LOW);   //Turn red GPS LED OFF (we are now in dual mode so green LED)
+            //digitalWrite(GPSRED_LED, LOW);   //Turn red GPS LED OFF (we are now in dual mode so green LED)
             useDual = true;
             dualDataFail = false;
             relPosDecode();
@@ -713,8 +695,8 @@ void loop()
     //GGA timeout, turn off GPS LED's etc
     if((systick_millis_count - gpsReadyTime) > 10000) //GGA age over 10sec
     {
-      digitalWrite(GPSRED_LED, LOW);
-      digitalWrite(GPSGREEN_LED, LOW);
+      //digitalWrite(GPSRED_LED, LOW);
+      //digitalWrite(GPSGREEN_LED, LOW);
       useDual = false;
     }
 
@@ -730,13 +712,13 @@ void loop()
     
   if (Ethernet.linkStatus() == LinkOFF) 
   {
-    digitalWrite(Power_on_LED, 1);
-    digitalWrite(Ethernet_Active_LED, 0);
+    //digitalWrite(Power_on_LED, 1);
+    //digitalWrite(Ethernet_Active_LED, 0);
   }
   if (Ethernet.linkStatus() == LinkON) 
   {
-    digitalWrite(Power_on_LED, 0);
-    digitalWrite(Ethernet_Active_LED, 1);
+    //digitalWrite(Power_on_LED, 0);
+    //digitalWrite(Ethernet_Active_LED, 1);
   }
 
 }//End Loop
