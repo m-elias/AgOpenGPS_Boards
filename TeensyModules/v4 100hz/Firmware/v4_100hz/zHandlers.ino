@@ -71,29 +71,38 @@ void GGA_Handler() //Rec'd GGA
 
     blink = !blink;
     GGA_Available = true;
+    bnoTimer = 0;
+    bnoTrigger = true;
 
     if (useDual)
     {
        dualReadyGGA = true;
     }
 
-    if (useBNO08x || useCMPS)
+    if (useBNO08x || useCMPS || useBNO08xRVC)
     {
-       imuHandler();          //Get IMU data ready
-       BuildNmea();           //Build & send data GPS data to AgIO (Both Dual & Single)
-       dualReadyGGA = false;  //Force dual GGA ready false because we just sent it to AgIO based off the IMU data
+       if(!useBNO08xRVC) imuHandler();  //Get IMU data ready (i2c BNO & CMPS only. RVC BNO done via timmed loop)
+       BuildNmea();                     //Build & send data GPS data to AgIO (Both Dual & Single)
+       dualReadyGGA = false;            //Force dual GGA ready false because we just sent it to AgIO based off the IMU data
        if (!useDual)
        {
         digitalWrite(GPSRED_LED, HIGH);    //Turn red GPS LED ON, we have GGA and must have a IMU     
         digitalWrite(GPSGREEN_LED, LOW);   //Make sure the Green LED is OFF     
        }
     }
-    else if (!useBNO08x && !useCMPS && !useDual) 
+    else if (!useBNO08x && !useCMPS && !useDual && !useBNO08xRVC) 
     {
         digitalWrite(GPSRED_LED, blink);   //Flash red GPS LED, we have GGA but no IMU or dual
         digitalWrite(GPSGREEN_LED, LOW);   //Make sure the Green LED is OFF
         itoa(65535, imuHeading, 10);       //65535 is max value to stop AgOpen using IMU in Panda
         BuildNmea();
+    }
+
+    else if (dualReadyRelPos == true)       //If dual data is ready send PAOGI now
+    {
+        BuildNmea();
+        dualReadyGGA = false;
+        dualReadyRelPos = false;
     }
     
     gpsReadyTime = systick_millis_count;    //Used for GGA timeout (LED's ETC) 
@@ -101,8 +110,9 @@ void GGA_Handler() //Rec'd GGA
 
 void readBNO()
 {
-          if (bno08x.dataAvailable() == true)
+        if (bno08x.dataAvailable() == true)
         {
+            //Serial.println("Reading I2C BNO");
             float dqx, dqy, dqz, dqw, dacr;
             uint8_t dac;
 
@@ -168,112 +178,168 @@ void readBNO()
             {
               roll *= -1;
             }
+
+            //Serial.print(roll); Serial.print("\t"); Serial.println(pitch); Serial.print("\t"); Serial.println(yaw);
         }
 }
 
 void imuHandler()
 {
     int16_t temp = 0;
-    if (!useDual)
+
+    Serial.print("IMU Handler - ");
+    if (useCMPS)
     {
-        if (useCMPS)
+        Serial.print("Reading I2C CMPS: ");
+        //the heading x10
+        Wire.beginTransmission(CMPS14_ADDRESS);
+        Wire.write(0x1C);
+        Wire.endTransmission();
+
+        Wire.requestFrom(CMPS14_ADDRESS, 3);
+        while (Wire.available() < 3);
+
+        roll = int16_t(Wire.read() << 8 | Wire.read());
+        if(invertRoll)
         {
-            //the heading x10
-            Wire.beginTransmission(CMPS14_ADDRESS);
-            Wire.write(0x1C);
-            Wire.endTransmission();
-
-            Wire.requestFrom(CMPS14_ADDRESS, 3);
-            while (Wire.available() < 3);
-
-            roll = int16_t(Wire.read() << 8 | Wire.read());
-            if (invertRoll)
-            {
-                roll *= -1;
-            }
-
-            // the heading x10
-            Wire.beginTransmission(CMPS14_ADDRESS);
-            Wire.write(0x02);
-            Wire.endTransmission();
-
-            Wire.requestFrom(CMPS14_ADDRESS, 3);
-            while (Wire.available() < 3);
-
-            temp = Wire.read() << 8 | Wire.read();
-            correctionHeading = temp * 0.1;
-            correctionHeading = correctionHeading * DEG_TO_RAD;
-            itoa(temp, imuHeading, 10);
-
-            // 3rd byte pitch
-            int8_t pitch = Wire.read();
-            itoa(pitch, imuPitch, 10);
-
-            // the roll x10
-            temp = (int16_t)roll;
-            itoa(temp, imuRoll, 10);
-
-            // YawRate - 0 for now
-            itoa(0, imuYawRate, 10);
+          roll *= -1;
         }
 
-        if (useBNO08x)
-        {
-            //BNO is reading in its own timer    
-            // Fill rest of Panda Sentence - Heading
-            temp = yaw;
-            itoa(temp, imuHeading, 10);
+        // the heading x10
+        Wire.beginTransmission(CMPS14_ADDRESS);
+        Wire.write(0x02);
+        Wire.endTransmission();
 
-            // the pitch x10
-            temp = (int16_t)pitch;
-            itoa(temp, imuPitch, 10);
+        Wire.requestFrom(CMPS14_ADDRESS, 3);
+        while (Wire.available() < 3);
 
-            // the roll x10
-            temp = (int16_t)roll;
-            itoa(temp, imuRoll, 10);
+        temp = Wire.read() << 8 | Wire.read();
+        correctionHeading = temp * 0.1;
+        correctionHeading = correctionHeading * DEG_TO_RAD;
+        itoa(temp, imuHeading, 10);
 
-            // YawRate - 0 for now
-            itoa(0, imuYawRate, 10);
-        }
+        // 3rd byte pitch
+        int8_t pitch = Wire.read();
+        itoa(pitch, imuPitch, 10);
+
+        // the roll x10
+        temp = (int16_t)roll;
+        itoa(temp, imuRoll, 10);
+
+        // YawRate - 0 for now
+        itoa(0, imuYawRate, 10);
     }
+
+    else if (useBNO08x)
+    {
+        Serial.print("Processing I2C BNO: ");
+        //BNO is reading in its own timer    
+        // Fill rest of Panda Sentence - Heading
+        temp = yaw;
+        itoa(temp, imuHeading, 10);
+
+        // the pitch x10
+        temp = (int16_t)pitch;
+        itoa(temp, imuPitch, 10);
+
+        // the roll x10
+        temp = (int16_t)roll;
+        itoa(temp, imuRoll, 10);
+
+        // YawRate - 0 for now
+        itoa(0, imuYawRate, 10);
+    }
+
+    else if (useBNO08xRVC)
+    {
+        //Serial.print("Reading RVC BNO: ");
+        float angVel;
+
+        // Fill rest of Panda Sentence - Heading
+        itoa(bnoData.yawX10, imuHeading, 10);
+        correctionHeading = (bnoData.yawX10 * 0.1) * DEG_TO_RAD;
+
+        if (steerConfig.IsUseY_Axis)
+        {
+            // the pitch x100
+            itoa(bnoData.pitchX10, imuPitch, 10);
+
+            // the roll x100
+            itoa(bnoData.rollX10, imuRoll, 10);
+        }
+        else
+        {
+            // the pitch x100
+            itoa(bnoData.rollX10, imuPitch, 10);
+
+            // the roll x100
+            itoa(bnoData.pitchX10, imuRoll, 10);
+        }
+
+        //Serial.print(rvc.angCounter);
+        //Serial.print(", ");
+        //Serial.print(bnoData.angVel);
+        //Serial.print(", ");
+        // YawRate
+        if (rvc.angCounter > 0)
+        {
+            angVel = ((float)bnoData.angVel) / (float)rvc.angCounter;
+            angVel *= 10.0;
+            rvc.angCounter = 0;
+            bnoData.angVel = (int16_t)angVel;
+        }
+        else
+        {
+            bnoData.angVel = 0;
+        }
+
+        itoa(bnoData.angVel, imuYawRate, 10);
+        bnoData.angVel = 0;
+
+    }
+
+    //Serial.print(imuRoll); Serial.print("\t"); Serial.print(imuPitch); Serial.print("\t"); Serial.println(imuHeading);
 
     // No else, because we want to use dual heading and IMU roll when both connected
     if (useDual)
     {
         // We have a IMU so apply the dual/IMU roll/heading error to the IMU data.
-//        if (useCMPS || useBNO08x)
-//        {
-//            float dualTemp;   //To convert IMU data (x10) to a float for the PAOGI so we have the decamal point
-//                     
-//            // the IMU heading raw
-////            dualTemp = yaw * 0.1;
-////            dtostrf(dualTemp, 3, 1, imuHeading);          
-//
-//            // the IMU heading fused to the dual heading
-//            fuseIMU();
-//            dtostrf(imuCorrected, 3, 1, imuHeading);
-//          
-//            // the pitch
-//            dualTemp = (int16_t)pitch * 0.1;
-//            dtostrf(dualTemp, 3, 1, imuPitch);
-//
-//            // the roll
-//            dualTemp = (int16_t)roll * 0.1;
-//            //If dual heading correction is 90deg (antennas left/right) correct the IMU roll
-//            if(headingcorr == 900)
-//            {
-//              dualTemp += rollDeltaSmooth;
-//            }
-//            dtostrf(dualTemp, 3, 1, imuRoll);
-//
-//        }
-//        else  //No IMU so put dual Heading & Roll in direct.
+        if (useCMPS || useBNO08x || useBNO08xRVC)
         {
-            // the roll
-            dtostrf(rollDual, 4, 2, imuRoll);
+            Serial.println("Fusing Dual with IMU");
+            float dualTemp;   //To convert IMU data (x10) to a float for the PAOGI so we have the decamal point
+                     
+            // the IMU heading raw
+//            dualTemp = yaw * 0.1;
+//            dtostrf(dualTemp, 3, 1, imuHeading);          
 
+            // the IMU heading fused to the dual heading
+            fuseIMU();
+            dtostrf(imuCorrected, 3, 1, imuHeading);
+          
+            // the pitch
+            dualTemp = (int16_t)pitch * 0.1;
+            dtostrf(dualTemp, 3, 1, imuPitch);
+
+            // the roll
+            dualTemp = (int16_t)roll * 0.1;
+            //If dual heading correction is 90deg (antennas left/right) correct the IMU roll
+            if(headingcorr == 900)
+            {
+              dualTemp += rollDeltaSmooth;
+            }
+            dtostrf(dualTemp, 3, 1, imuRoll);
+
+        }
+        else  //No IMU so put dual Heading & Roll in direct.
+        {
+            Serial.println("Using Dual as IMU");
+            // the roll
+            dtostrf(rollDual, 3, 1, imuRoll);
+            
             // the Dual heading raw
-            dtostrf(heading, 4, 2, imuHeading);
+            dtostrf(heading, 3, 1, imuHeading);
+            
         }
     }
 }
@@ -344,15 +410,15 @@ void BuildNmea(void)
 
     if (!passThroughGPS && !passThroughGPS2)
     {
-        SerialAOG.write(nmea);  //Always send USB GPS data
+        //SerialAOG.write(nmea);  //Always send USB GPS data
     }
 
     if (Ethernet_running)   //If ethernet running send the GPS there
     {
         int len = strlen(nmea);
-        Eth_udpPAOGI.beginPacket(Eth_ipDestination, portDestination);
-        Eth_udpPAOGI.write(nmea, len);
-        Eth_udpPAOGI.endPacket();
+        Eth_udpNEMA.beginPacket(Eth_ipDestination, portDestination);
+        Eth_udpNEMA.write(nmea, len);
+        Eth_udpNEMA.endPacket();
     }
 }
 

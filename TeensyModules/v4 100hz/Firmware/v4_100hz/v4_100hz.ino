@@ -1,6 +1,9 @@
 // Single antenna, IMU, & dual antenna code for AgOpenGPS
 // If dual right antenna is for position (must enter this location in AgOpen), left Antenna is for heading & roll
 //
+//modified by Pat 20/05/2023 BNO_RVC.cpp set 100 to the yaw reset
+//
+//
 // connection plan:
 // Teensy Serial 7 RX (28) to F9P Position receiver TX1 (Position data)
 // Teensy Serial 7 TX (29) to F9P Position receiver RX1 (RTCM data for RTK)
@@ -25,10 +28,17 @@
 // CFG-UART2-BAUDRATE 460800
 // Serial 2 In RTCM
 
+String inoVersion = ("\r\nFirmware Version !! RVC & A0 TEST !!, 20.05.2023 - Pat Valtra\r\n");
+
+#include "reset.h"
+//Reset(uint8_t _btnIO, uint16_t _btnPressPeriod = 10000, uint8_t _ledIO = LED_BUILTIN)
+Reset teensyReset(A12, 2000);  //Used for Teensy reboot (short press) & reset to firmware default (10s long press, work in progress)
+
 /************************* User Settings *************************/
 // Serial Ports
 #define SerialAOG Serial                //AgIO USB conection
 #define SerialRTK Serial3               //RTK radio
+HardwareSerial* SerialIMU = &Serial5;   //IMU BNO-085
 HardwareSerial* SerialGPS = &Serial7;   //Main postion receiver (GGA) (Serial2 must be used here with T4.0 / Basic Panda boards - Should auto swap)
 HardwareSerial* SerialGPS2 = &Serial2;  //Dual heading receiver 
 HardwareSerial* SerialGPSTmp = NULL;
@@ -36,7 +46,7 @@ HardwareSerial* SerialGPSTmp = NULL;
 
 const int32_t baudAOG = 115200;
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
+const int32_t baudRTK = 115200;
 
 // Baudrates for detecting UBX receiver
 uint32_t baudrates[]
@@ -65,6 +75,19 @@ const bool invertRoll= true;  //Used for IMU with dual antenna
 
 #define REPORT_INTERVAL 20    //BNO report time, we want to keep reading it quick & offen. Its not timmed to anything just give constant data.
 uint32_t READ_BNO_TIME = 0;   //Used stop BNO data pile up (This version is without resetting BNO everytime)
+
+//Roomba Vac mode for BNO085 and data
+#include "BNO_RVC.h"
+BNO_rvc rvc = BNO_rvc();
+BNO_rvcData bnoData;
+elapsedMillis bnoTimer;
+bool bnoTrigger = false;
+
+#include <ADC.h>
+#include <ADC_util.h>
+
+//16x oversampling medium speed 12 bit A/D object
+ADC* adcWAS = new ADC();
 
 //Status LED's
 #define GGAReceivedLED 13         //Teensy onboard LED
@@ -95,7 +118,9 @@ struct ConfigIP {
     uint8_t ipOne = 192;
     uint8_t ipTwo = 168;
     uint8_t ipThree = 5;
-};  ConfigIP networkAddress;   //3 bytes
+}; ConfigIP defaultNetworkAddress;
+
+struct ConfigIP networkAddress = defaultNetworkAddress;
 
 // IP & MAC address of this module of this module
 byte Eth_myip[4] = { 0, 0, 0, 0}; //This is now set via AgIO
@@ -106,11 +131,12 @@ unsigned int AOGNtripPort = 2233;       // port NTRIP data from AOG comes in
 unsigned int AOGAutoSteerPort = 8888;   // port Autosteer data from AOG comes in
 unsigned int portDestination = 9999;    // Port of AOG that listens
 char Eth_NTRIP_packetBuffer[512];       // buffer for receiving ntrip data
+char Eth_NEMA_packetBuffer[512];        // buffer for receiving NEMA data
 
 // An EthernetUDP instance to let us send and receive packets over UDP
-EthernetUDP Eth_udpPAOGI;     //Out port 5544
-EthernetUDP Eth_udpNtrip;     //In port 2233
-EthernetUDP Eth_udpAutoSteer; //In & Out Port 8888
+EthernetUDP Eth_udpNEMA;      //Port 5120
+EthernetUDP Eth_udpNtrip;     //Port 2233
+EthernetUDP Eth_udpAutoSteer; //Port 8888
 
 IPAddress Eth_ipDestination;
 #endif // ARDUINO_TEENSY41
@@ -131,12 +157,16 @@ byte velocityPWM_Pin = 36;      // Velocity (MPH speed) PWM pin
 extern "C" uint32_t set_arm_clock(uint32_t frequency); // required prototype
 
 bool useDual = false;
+bool dualBaselineFail = true;
+bool dualRTKFail = true;
+bool dualDataFail = true;
 bool dualReadyGGA = false;
 bool dualReadyRelPos = false;
 
 // booleans to see if we are using CMPS or BNO08x
 bool useCMPS = false;
 bool useBNO08x = false;
+bool useBNO08xRVC = false;
 
 //CMPS always x60
 #define CMPS14_ADDRESS 0x60
@@ -152,8 +182,8 @@ double headingcorr = 900;  //90deg heading correction (90deg*10)
 // Heading correction 180 degrees, because normally the heading antenna is in front, but we have it at the back
 //double headingcorr = 1800;  // 180deg heading correction (180deg*10)
 
-double baseline = 0;
-double rollDual = 0;
+float baseline = 0;
+float rollDual = 0;
 double relPosD = 0;
 double heading = 0;
 
@@ -221,9 +251,10 @@ struct ubxPacket
 void setup()
 {
     delay(500);                         //Small delay so serial can monitor start up
-    //set_arm_clock(150000000);           //Set CPU speed to 150mhz
-    //Serial.print("CPU speed set to: ");
-    //Serial.println(F_CPU_ACTUAL);
+    set_arm_clock(150000000);
+    delay(100);           //Set CPU speed to 150mhz
+    Serial.print("CPU speed set to: ");
+    Serial.println(F_CPU_ACTUAL);
 
   pinMode(GGAReceivedLED, OUTPUT);
   pinMode(Power_on_LED, OUTPUT);
@@ -238,8 +269,6 @@ void setup()
   parser.addHandler("G-GGA", GGA_Handler);
   parser.addHandler("G-VTG", VTG_Handler);
 
-  delay(10);
-  Serial.begin(baudAOG);
   delay(10);
   Serial.println("Start setup");
 
@@ -256,7 +285,7 @@ void setup()
   SerialGPS2->addMemoryForRead(GPS2rxbuffer, serial_buffer_size);
   SerialGPS2->addMemoryForWrite(GPS2txbuffer, serial_buffer_size);
 
-  Serial.println("SerialAOG, SerialRTK, SerialGPS and SerialGPS2 initialized");
+  Serial.println("SerialAOG, SerialRTK, SerialGPS, SerialGPS2, SerailIMU all initialized");
 
   Serial.println("\r\nStarting AutoSteer...");
   autosteerSetup();
@@ -265,96 +294,125 @@ void setup()
   EthernetStart();
 
   Serial.println("\r\nStarting IMU...");
-  //test if CMPS working
-  uint8_t error;
+  bool reboot = false;    // for testing, used to reboot until no BNO is detected, can be removed 
 
-  ImuWire.begin();
-  
-  //Serial.println("Checking for CMPS14");
-  ImuWire.beginTransmission(CMPS14_ADDRESS);
-  error = ImuWire.endTransmission();
-
-  if (error == 0)
+  //check for RVC/Serial BNO first
+  pinMode(A4, INPUT); // set SDA to high impedance
+  SerialIMU->begin(115200);
+  rvc.begin(SerialIMU);
+  static elapsedMillis rvcBnoTimer = 0;
+  Serial.println("Checking for RVC/Serial BNO08x");
+  while (rvcBnoTimer < 1000)
   {
-    //Serial.println("Error = 0");
-    Serial.print("CMPS14 ADDRESs: 0x");
-    Serial.println(CMPS14_ADDRESS, HEX);
-    Serial.println("CMPS14 Ok.");
-    useCMPS = true;
-  }
-  else
-  {
-    //Serial.println("Error = 4");
-    Serial.println("CMPS not Connected or Found");
-  }
-
-  if (!useCMPS)
-  {
-      for (int16_t i = 0; i < nrBNO08xAdresses; i++)
+      if (rvc.read(&bnoData)) //check if new bnoData
       {
-          bno08xAddress = bno08xAddresses[i];
-
-          //Serial.print("\r\nChecking for BNO08X on ");
-          //Serial.println(bno08xAddress, HEX);
-          ImuWire.beginTransmission(bno08xAddress);
-          error = ImuWire.endTransmission();
-
-          if (error == 0)
-          {
-              //Serial.println("Error = 0");
-              Serial.print("0x");
-              Serial.print(bno08xAddress, HEX);
-              Serial.println(" BNO08X Ok.");
-
-              // Initialize BNO080 lib
-              if (bno08x.begin(bno08xAddress, ImuWire)) //??? Passing NULL to non pointer argument, remove maybe ???
-              {
-                  //Increase I2C data rate to 400kHz
-                  ImuWire.setClock(400000); 
-
-                  delay(300);
-
-                  // Use gameRotationVector and set REPORT_INTERVAL
-                  bno08x.enableGameRotationVector(REPORT_INTERVAL);
-                  useBNO08x = true;
-              }
-              else
-              {
-                  Serial.println("BNO080 not detected at given I2C address.");
-              }
-          }
-          else
-          {
-              //Serial.println("Error = 4");
-              Serial.print("0x");
-              Serial.print(bno08xAddress, HEX);
-              Serial.println(" BNO08X not Connected or Found");
-          }
-          if (useBNO08x) break;
+          useBNO08xRVC = true;
+          Serial.println(" - RVC/Serial BNO08x Good To Go :-)");
+          imuHandler();
+          //reboot = true;
+          break;
       }
   }
 
-  delay(100);
-  Serial.print("\r\nuseCMPS = ");
-  Serial.println(useCMPS);
+  if(!useBNO08xRVC) // if no RVC BNO, then look for I2C BNO
+  {
+      Serial.println(" - no RVC/Serial BNO08x Connected or Found");
+      Serial.println("Checking for I2C BNO08x");
+      
+      ImuWire.begin();
+      uint8_t bnoAttempts = 10;  // 7 seems to be enough, tested all night, 10 might be safer but causes more delay if not detected
+      
+      for (int16_t i = 0; i < nrBNO08xAdresses; i++)
+      {
+          uint8_t tries = 0;
+          while (!bno08x.begin(bno08xAddresses[i], ImuWire) && tries < bnoAttempts) //??? Passing NULL to non pointer argument, remove maybe ???
+          {
+            Serial.print(" - BNO08x not detected at 0x"); Serial.println(bno08xAddresses[i], HEX);
+            tries++;
+            //delay(50);
+          }
+          //if (tries == 0) reboot = true;
+          if (tries < bnoAttempts){
+            ImuWire.setClock(400000); 
+            delay(300);
+            bno08x.enableGameRotationVector(REPORT_INTERVAL);
+            useBNO08x = true;
+            Serial.println(" - I2C BNO08x Good To Go!");
+            //reboot = true;
+            break;
+          }
+      }
+  }
+
+  //delay(100);
+  Serial.print("\r\nuseBNO08xRVC = ");
+  Serial.println(useBNO08xRVC);
   Serial.print("useBNO08x = ");
   Serial.println(useBNO08x);
 
-  Serial.println("\r\nEnd setup, waiting for GPS...\r\n");
+  Serial.println(inoVersion);
+  Serial.println("\r\nwaiting for GPS...\r\n");
+
+  if (useBNO08x && reboot){
+    delay(100);
+    SCB_AIRCR = 0x05FA0004; //Teensy Reset
+  }
+
+  if (useBNO08xRVC && reboot){
+    delay(100);
+    SCB_AIRCR = 0x05FA0004; //Teensy Reset
+  }
 }
 
 void loop()
 {
+    if (teensyReset.update()){  // true return means reset settings to defaults
+      // set to firmware defaults code goes here
+
+      // set defaults
+      //networkAddress = defaultNetworkAddress;
+      //steerConfig = defaultSteerConfig; // doesn't work because loop()doesn't have access to these structs, don't know how to fix it
+      
+
+      // save all defaults to EEPROM, needs restructuring into a function call so that these lines are only in one place
+      // copied from autosteerSetup()
+      // EEPROM doesn't work here either
+      //EEPROM.put(10, steerSettings);
+      //EEPROM.put(40, steerConfig);
+      //EEPROM.put(60, networkAddress);    
+
+      Serial.println("\r\n\n****** Factory/firmware defaults set ******");
+      Serial.println("\r\n**************** Rebooting ****************");
+      teensyReset.reboot(true);      
+    }
+
     if (GGA_Available == false && !passThroughGPS && !passThroughGPS2)
     {
         if (systick_millis_count - PortSwapTime >= 10000)
         {
-            Serial.println("Swapping GPS ports...\r\n");
+            Serial.println("GPS Data Missing... Check F9P Config\r\n");
             SerialGPSTmp = SerialGPS;
             SerialGPS = SerialGPS2;
             SerialGPS2 = SerialGPSTmp;
             PortSwapTime = systick_millis_count;
         }
+    }
+
+    if (!useCMPS && !useBNO08x)
+    {
+        //RVC BNO08x
+        if (rvc.read(&bnoData)) useBNO08xRVC = true;
+    }
+
+    /*if (useBNO08x && bnoTimer > 99){
+      imuHandler();
+      bnoTimer = 0;
+    }*/
+
+    if (useBNO08xRVC && bnoTimer > 40 && bnoTrigger)
+    {
+        bnoTrigger = false;
+        imuHandler();   //Get IMU data ready
     }
 
     // Pass NTRIP etc to GPS
@@ -582,20 +640,24 @@ void loop()
         }
     }
 
+    // Read any NMEA sent via UDP
+    int packetLength = Eth_udpNEMA.parsePacket();
+
+    if (packetLength > 0)
+    {
+        Eth_udpNEMA.read(Eth_NEMA_packetBuffer, packetLength);
+        for (int i = 0; i < packetLength; i++)
+        {
+            parser << Eth_NEMA_packetBuffer[i];
+        }
+    }
+
     udpNtrip();
 
     // Check for RTK Radio
     if (SerialRTK.available())
     {
         SerialGPS->write(SerialRTK.read());
-    }
-
-    // If both dual messages are ready, send to AgOpen
-    if (dualReadyGGA == true && dualReadyRelPos == true)
-    {
-        BuildNmea();
-        dualReadyGGA = false;
-        dualReadyRelPos = false;
     }
 
     // If anything comes in SerialGPS2 RelPos data
@@ -636,12 +698,15 @@ void loop()
             //if(deBug) Serial.println("RelPos Message Recived");
             digitalWrite(GPSRED_LED, LOW);   //Turn red GPS LED OFF (we are now in dual mode so green LED)
             useDual = true;
+            dualDataFail = false;
             relPosDecode();
         }
-        /*  else {
-          if(deBug) Serial.println("ACK Checksum Failure: ");
-          }
-        */
+
+        else 
+        {
+            dualDataFail = true;
+        }
+        
         relposnedByteCount = 0;
     }
 
@@ -673,6 +738,7 @@ void loop()
     digitalWrite(Power_on_LED, 0);
     digitalWrite(Ethernet_Active_LED, 1);
   }
+
 }//End Loop
 //**************************************************************************
 

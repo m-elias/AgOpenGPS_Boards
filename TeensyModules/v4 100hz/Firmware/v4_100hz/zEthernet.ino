@@ -50,9 +50,9 @@ void EthernetStart()
   Serial.print("All data sending to port: "); Serial.println(portDestination);
 
   // init UPD Port sending to AOG
-  if (Eth_udpPAOGI.begin(portMy))
+  if (Eth_udpNEMA.begin(portMy))
   {
-    Serial.print("Ethernet GPS UDP sending from port: ");
+    Serial.print("Ethernet GPS UDP sending/recv'ing port: ");
     Serial.println(portMy);
   }
 
