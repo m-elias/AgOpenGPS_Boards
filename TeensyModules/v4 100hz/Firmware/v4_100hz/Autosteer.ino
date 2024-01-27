@@ -47,7 +47,7 @@
 
 #define CONST_180_DIVIDED_BY_PI 57.2957795130823
 
-#define WAS_SENSOR_PIN A0  //ADC1
+#define WAS_SENSOR_PIN A0  //adc0
 
 #include <Wire.h>
 #include <EEPROM.h>
@@ -69,7 +69,7 @@ uint8_t autoSteerUdpData[UDP_TX_PACKET_MAX_SIZE];  // Buffer For Receiving UDP D
 #endif
 
 //loop time variables in microseconds
-const uint16_t LOOP_TIME = 25;  //40Hz
+const uint16_t LOOP_TIME = 10;  //25 = 40Hz, 10 = 100hz
 uint32_t autsteerLastTime = LOOP_TIME;
 uint32_t currentTime = LOOP_TIME;
 
@@ -232,7 +232,8 @@ void autosteerSetup() {
   //TWBR = 144;   //Is this needed?
   adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
   adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
-
+  adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
+      
   EEPROM.get(0, EEread);  // read identifier
 
   if (EEread != EEP_Ident)  // check on first start and write EEPROM
@@ -274,8 +275,12 @@ void autosteerLoop() {
   currentTime = systick_millis_count;
 
   if (currentTime - autsteerLastTime >= LOOP_TIME) {
-    Serial.print("\rAS loop hz: "); Serial.println(1000 / (currentTime - autsteerLastTime));
-    autsteerLastTime = currentTime;
+    //Serial.print("\rAS loop hz: "); Serial.print(1000 / (currentTime - autsteerLastTime));
+    Serial.print("\rloop period: "); Serial.print(currentTime - autsteerLastTime); Serial.print("ms");
+
+    if (currentTime - autsteerLastTime > LOOP_TIME * 1.5) autsteerLastTime = currentTime;
+    else autsteerLastTime += LOOP_TIME;
+
     uint32_t autsteerStartTimeuS = micros();
 
     //reset debounce
@@ -376,27 +381,29 @@ void autosteerLoop() {
     //get steering position
     if (steerConfig.SingleInputWAS)  //Single Input ADS
     {
-      adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
+      Serial.print(", ADS");
       analogInputs[0].readPin(adc.getConversion(), true);
+      adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
       adc.triggerConversion();//ADS1115 Single Mode
 
       /*steeringPosition = (steeringPosition >> 1); //bit shift by 2  0 to 13610 is 0 to 5v
       helloSteerPosition = steeringPosition - 6800;*/
 
-      steeringPosition = adcWAS->adc1->analogRead(WAS_SENSOR_PIN);
+      steeringPosition = adcWAS->adc0->analogRead(WAS_SENSOR_PIN);
+      Serial.print(", A0");
       analogInputs[1].readPin(steeringPosition, true);
       helloSteerPosition = steeringPosition - 2048;
       //Serial.print("\r A0: "); Serial.println(steeringPosition);
       //helloSteerPosition = adcWAS->adc0->analogRead(A1);
-    } else  //ADS1115 Differential Mode
+    }/* else  //ADS1115 Differential Mode
     {
-      /*adc.setMux(ADS1115_REG_CONFIG_MUX_DIFF_0_1);
+      adc.setMux(ADS1115_REG_CONFIG_MUX_DIFF_0_1);
       steeringPosition = adc.getConversion();
       adc.triggerConversion();
 
       steeringPosition = (steeringPosition >> 1); //bit shift by 2  0 to 13610 is 0 to 5v
-      helloSteerPosition = steeringPosition - 6800;*/
-    }
+      helloSteerPosition = steeringPosition - 6800;
+    }*/
 
     //DETERMINE ACTUAL STEERING POSITION
 
@@ -454,8 +461,8 @@ void autosteerLoop() {
       digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
     }
 
-    Serial.print("\rAS loop time: "); Serial.println(micros() - autsteerStartTimeuS);
-    Serial.print("\rAS loop time: "); Serial.println(systick_millis_count - autsteerLastTime);
+    Serial.print(", loop run time: "); Serial.print(micros() - autsteerStartTimeuS); Serial.println("uS");
+    //Serial.print("\rAS loop time: "); Serial.println(systick_millis_count - autsteerLastTime);
   }  //end of timed loop
 
   //This runs continuously, outside of the timed loop, keeps checking for new udpData, turn sense
