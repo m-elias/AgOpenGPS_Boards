@@ -28,11 +28,14 @@
 // CFG-UART2-BAUDRATE 460800
 // Serial 2 In RTCM
 
-String inoVersion = ("\r\nFirmware Version !! RVC & A0 TEST !!, 20.05.2023 - Pat Valtra\r\n");
+String inoVersion = ("\r\nFirmware Version !! RVC & A0 TEST !!, 2024.01.26 - Matt ADC comparison\r\n");
 
 #include "reset.h"
 //Reset(uint8_t _btnIO, uint16_t _btnPressPeriod = 10000, uint8_t _ledIO = LED_BUILTIN)
-Reset teensyReset(A12, 2000);  //Used for Teensy reboot (short press) & reset to firmware default (10s long press, work in progress)
+Reset teensyReset(A13, 2000);  //Used for Teensy reboot (short press) & reset to firmware default (10s long press, work in progress)
+
+#include "analogInput.h"
+AnalogInput analogInputs[2];
 
 /************************* User Settings *************************/
 // Serial Ports
@@ -251,7 +254,7 @@ struct ubxPacket
 void setup()
 {
     delay(500);                         //Small delay so serial can monitor start up
-    set_arm_clock(150000000);
+    //set_arm_clock(150000000);
     delay(100);           //Set CPU speed to 150mhz
     Serial.print("CPU speed set to: ");
     Serial.println(F_CPU_ACTUAL);
@@ -362,6 +365,9 @@ void setup()
     delay(100);
     SCB_AIRCR = 0x05FA0004; //Teensy Reset
   }
+
+  analogInputs[0].init(&Serial);
+  analogInputs[1].init(&Serial);
 }
 
 void loop()
@@ -382,6 +388,8 @@ void loop()
       //EEPROM.put(60, networkAddress);    
 
       Serial.println("\r\n\n****** Factory/firmware defaults set ******");
+      delay(2000);
+      Serial.println("\r\njust kidding, this doesn't work yet, just rebooting");
       Serial.println("\r\n**************** Rebooting ****************");
       teensyReset.reboot(true);      
     }
@@ -728,17 +736,16 @@ void loop()
     if (Autosteer_running) autosteerLoop();
     else ReceiveUdp();
     
-  if (Ethernet.linkStatus() == LinkOFF) 
-  {
-    digitalWrite(Power_on_LED, 1);
-    digitalWrite(Ethernet_Active_LED, 0);
-  }
-  if (Ethernet.linkStatus() == LinkON) 
-  {
-    digitalWrite(Power_on_LED, 0);
-    digitalWrite(Ethernet_Active_LED, 1);
-  }
-
+    if (Ethernet.linkStatus() == LinkOFF) 
+    {
+      digitalWrite(Power_on_LED, 1);
+      digitalWrite(Ethernet_Active_LED, 0);
+    }
+    if (Ethernet.linkStatus() == LinkON) 
+    {
+      digitalWrite(Power_on_LED, 0);
+      digitalWrite(Ethernet_Active_LED, 1);
+    }
 }//End Loop
 //**************************************************************************
 
