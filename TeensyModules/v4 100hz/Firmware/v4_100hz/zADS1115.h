@@ -65,7 +65,7 @@
 #define ADS1115_REG_CONFIG_PGA_0_256V   (0x0A00)  // +/-0.256V range = Gain 16
 
 //NSingle Shot or Continuous Mode.  Cont mode is not used in this program but is preserved here for posterity
-//#define ADS1115_REG_CONFIG_MODE_CONTIN  (0x0000)  // Continuous conversion mode
+#define ADS1115_REG_CONFIG_MODE_CONTIN  (0x0000)  // Continuous conversion mode
 #define ADS1115_REG_CONFIG_MODE_SINGLE  (0x0100)  // Power-down single-shot mode (default)
 
 //Sample Rate or Data Rate.  Used as input to setSampleRate().  Note

@@ -77,6 +77,9 @@ const uint16_t WATCHDOG_THRESHOLD = 100;
 const uint16_t WATCHDOG_FORCE_VALUE = WATCHDOG_THRESHOLD + 2;  // Should be greater than WATCHDOG_THRESHOLD
 uint8_t watchdogTimer = WATCHDOG_FORCE_VALUE;
 
+uint32_t adsStartConversionTime;
+bool adcTimePrinted;
+
 //Heart beat hello AgIO
 uint8_t helloFromIMU[] = { 128, 129, 121, 121, 5, 0, 0, 0, 0, 0, 71 };
 uint8_t helloFromAutoSteer[] = { 0x80, 0x81, 126, 126, 5, 0, 0, 0, 0, 0, 71 };
@@ -207,7 +210,6 @@ void autosteerSetup() {
 
   //WAS A/D convertor setup
   pinMode(WAS_SENSOR_PIN, INPUT_DISABLE);  //AO
-  //pinMode(ANALOG_SENSOR_PIN, INPUT_DISABLE); //A1
 
   adcWAS->adc0->setAveraging(16);                                     // set number of averages
   adcWAS->adc0->setResolution(12);                                    // set bits of resolution
@@ -230,9 +232,15 @@ void autosteerSetup() {
 
   //50Khz I2C
   //TWBR = 144;   //Is this needed?
-  adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS); //128 samples per second
+
+//#define ADS1115_REG_CONFIG_DR_128SPS   (0x0080)  // 128 SPS, or every 7.8ms  (default)
+//#define ADS1115_REG_CONFIG_DR_250SPS   (0x00A0)  // 250 SPS, or every 4ms, note that noise free resolution is reduced to ~14.75-16bits, see table 2 in datasheet
+//#define ADS1115_REG_CONFIG_DR_475SPS   (0x00C0)  // 475 SPS, or every 2.1ms, note that noise free resolution is reduced to ~14.3-15.5bits, see table 2 in datasheet
+//#define ADS1115_REG_CONFIG_DR_860SPS   (0x00E0)  // 860 SPS, or every 1.16ms, note that noise free resolution is reduced to ~13.8-15bits, see table 2 in datasheet
+  adc.setSampleRate(ADS1115_REG_CONFIG_DR_860SPS);
   adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
   adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
+  adc.triggerConversion(); // for continous mode
       
   EEPROM.get(0, EEread);  // read identifier
 
@@ -271,15 +279,19 @@ void autosteerLoop() {
 #endif
   //Serial.println("AutoSteer loop");
 
+  /*uint32_t adsReadTime = micros();
+  Serial.print("\r\n"); Serial.print(micros()); Serial.print(" "); Serial.print(adc.getConversion());
+  Serial.print(" "); Serial.print(micros() - adsReadTime);*/
+
   // Loop triggers every 100 msec and sends back gyro heading, and roll, steer angle etc
-  currentTime = systick_millis_count;
+  currentTime = micros();
 
-  if (currentTime - autsteerLastTime >= LOOP_TIME) {
+  if (currentTime - autsteerLastTime >= 1160) {
     //Serial.print("\rAS loop hz: "); Serial.print(1000 / (currentTime - autsteerLastTime));
-    Serial.print("\rloop period: "); Serial.print(currentTime - autsteerLastTime); Serial.print("ms");
+    Serial.print("\r\nloop period: "); Serial.print(currentTime - autsteerLastTime); Serial.print("uS");
 
-    if (currentTime - autsteerLastTime > LOOP_TIME * 1.5) autsteerLastTime = currentTime;
-    else autsteerLastTime += LOOP_TIME;
+    if (currentTime - autsteerLastTime > 2000) autsteerLastTime = currentTime;
+    else autsteerLastTime += 1160;
 
     uint32_t autsteerStartTimeuS = micros();
 
@@ -383,8 +395,10 @@ void autosteerLoop() {
     {
       Serial.print(", ADS");
       analogInputs[0].readPin(adc.getConversion(), true);
-      adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
-      adc.triggerConversion();//ADS1115 Single Mode
+      //adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
+      //adc.triggerConversion();//ADS1115 Single Mode
+      //adsStartConversionTime = millis();
+      //adcTimePrinted = 0;
 
       /*steeringPosition = (steeringPosition >> 1); //bit shift by 2  0 to 13610 is 0 to 5v
       helloSteerPosition = steeringPosition - 6800;*/
@@ -461,17 +475,19 @@ void autosteerLoop() {
       digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
     }
 
-    Serial.print(", loop run time: "); Serial.print(micros() - autsteerStartTimeuS); Serial.println("uS");
-    //Serial.print("\rAS loop time: "); Serial.println(systick_millis_count - autsteerLastTime);
+    Serial.print(", loop run time: "); Serial.print(micros() - autsteerStartTimeuS); Serial.print("uS, ");
   }  //end of timed loop
-
-  //This runs continuously, outside of the timed loop, keeps checking for new udpData, turn sense
-  //delay(1);
+/*
+  //if (!adcTimePrinted && adc.isConversionDone()){
+  if (adc.isConversionDone()){
+    Serial.print("ads conv time: "); Serial.print(millis()-adsStartConversionTime); Serial.println("ms");
+    adcTimePrinted = 1;
+  }
+*/
 
   // Speed pulse
   if (gpsSpeedUpdateTimer < 1000) {
-    if (speedPulseUpdateTimer > 200)  // 100 (10hz) seems to cause tone lock ups occasionally
-    {
+    if (speedPulseUpdateTimer > 200) { // 100 (10hz) seems to cause tone lock ups occasionally
       speedPulseUpdateTimer = 0;
 
       //130 pp meter, 3.6 kmh = 1 m/sec = 130hz or gpsSpeed * 130/3.6 or gpsSpeed * 36.1111
@@ -480,15 +496,13 @@ void autosteerLoop() {
 
       //Serial.print(gpsSpeed); Serial.print(" -> "); Serial.println(speedPulse);
 
-      if (gpsSpeed > 0.3)  // 0.10 wasn't high enough
-      {
+      if (gpsSpeed > 0.3) { // 0.10 wasn't high enough
         tone(velocityPWM_Pin, uint16_t(speedPulse));
       } else {
         noTone(velocityPWM_Pin);
       }
     }
-  } else  // if gpsSpeedUpdateTimer hasn't update for 1000 ms, turn off speed pulse
-  {
+  } else { // if gpsSpeedUpdateTimer hasn't update for 1000 ms, turn off speed pulse
     noTone(velocityPWM_Pin);
   }
 
@@ -530,6 +544,7 @@ void ReceiveUdp() {
     {
       if (autoSteerUdpData[3] == 0xFE && Autosteer_running)  //254
       {
+        //Serial.print("\rsteerData update period: "); Serial.println(gpsSpeedUpdateTimer);
         gpsSpeed = ((float)(autoSteerUdpData[5] | autoSteerUdpData[6] << 8)) * 0.1;
         gpsSpeedUpdateTimer = 0;
 

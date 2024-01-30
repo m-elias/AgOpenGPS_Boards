@@ -100,7 +100,8 @@ void ADS1115_lite::triggerConversion() {
   config |= _rate;
 
   // OR in the mode bit 8
-  config |= ADS1115_REG_CONFIG_MODE_SINGLE; // Single-shot mode (default)
+  //config |= ADS1115_REG_CONFIG_MODE_SINGLE; // Single-shot mode (default)
+  config |= ADS1115_REG_CONFIG_MODE_CONTIN;   // Continuous conversion mode
 
   // OR in the PGA/voltage range bits 9 through 11
   config |= _gain;
