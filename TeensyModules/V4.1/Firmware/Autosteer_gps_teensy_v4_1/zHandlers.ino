@@ -572,7 +572,7 @@ void BuildCorrectedNMEA(void)
     else strcat(correctedNMEA, "S");
     strcat(correctedNMEA, ",");
 
-    if (longNMEA < 10000.0) strcat(correctedNMEA, "0");
+    if (longNMEA < 10000.0) strcat(correctedNMEA, "0"); // not sure leading '0' is needed
     dtostrf(longNMEA, 9, 5, correctedLongitude);
     strcat(correctedNMEA, correctedLongitude);
     strcat(correctedNMEA, ",");
