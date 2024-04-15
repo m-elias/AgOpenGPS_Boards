@@ -36,7 +36,7 @@ HardwareSerial* SerialGPSTmp = NULL;
 
 const int32_t baudAOG = 115200;
 const int32_t baudGPS = 460800;
-const int32_t baudRTK = 9600;     // most are using Xbee radios with default of 115200
+const int32_t baudRTK = 115200;     // most are using Xbee radios with default of 115200
 
 // Baudrates for detecting UBX receiver
 uint32_t baudrates[]
