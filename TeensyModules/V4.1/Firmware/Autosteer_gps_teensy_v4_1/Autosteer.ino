@@ -98,7 +98,7 @@ int16_t EEread = 0;
 //Relays
 bool isRelayActiveHigh = true;
 uint8_t relay = 0, relayHi = 0, uTurn = 0;
-uint8_t tram = 0;
+uint8_t xte = 0;
 
 //Switches
 uint8_t remoteSwitch = 0, workSwitch = 0, steerSwitch = 1, switchByte = 0;
@@ -574,8 +574,8 @@ void ReceiveUdp()
                     watchdogTimer = 0;  //reset watchdog
                 }
 
-                //Bit 10 Tram
-                tram = autoSteerUdpData[10];
+                //Bit 10 XTE
+                xte = autoSteerUdpData[10];
 
                 //Bit 11
                 relay = autoSteerUdpData[11];
